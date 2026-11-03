@@ -135,8 +135,8 @@ export const ProjectWorkspaceView: React.FC = () => {
   const { data: orgUsers = [] } = useQuery({
     queryKey: ["orgUsers"],
     queryFn: async () => {
-      const res = await apiClient.get<UserProfile[]>("/users");
-      return res.data;
+      const res = await apiClient.get<{ users: UserProfile[]; total: number }>("/users");
+      return Array.isArray(res.data) ? res.data : (res.data?.users || []);
     },
     enabled: currentUser?.role === "ADMIN" || currentUser?.role === "PROJECT_MANAGER",
   });
@@ -1667,7 +1667,7 @@ export const ProjectWorkspaceView: React.FC = () => {
                 className="w-full text-sm rounded-lg border border-charcoal/20 px-3 py-2 bg-white text-charcoal focus:outline-none focus:border-forest"
               >
                 <option value="">-- Choose User --</option>
-                {orgUsers
+                {(Array.isArray(orgUsers) ? orgUsers : [])
                   .filter((u) => u.is_active && !project.assignments?.some((a) => a.user_id === u.id))
                   .map((u) => (
                     <option key={u.id} value={u.id}>
