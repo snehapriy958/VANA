@@ -108,10 +108,83 @@ Detailed technical and design specifications are maintained in the `docs/` tree:
 
 ---
 
-## 6. Development & Operational Governance
+## 6. Local Development & Quickstart
+
+### Prerequisites
+* Python 3.12+
+* Node.js 20+ and npm
+* PostgreSQL 16+ (or local instance)
+
+### 1. Database Setup
+```bash
+# Start local PostgreSQL or provision Neon PostgreSQL database
+# Run migrations from backend directory:
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # Or on Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+alembic upgrade head
+```
+
+### 2. Backend API Server
+```bash
+cd backend
+uvicorn app.main:app --reload --port 8000
+# Live health check: http://localhost:8000/health
+# OpenAPI Documentation: http://localhost:8000/docs
+```
+
+### 3. Frontend Single Page Application
+```bash
+cd frontend
+npm install
+npm run dev
+# Open http://localhost:5173
+```
+
+---
+
+## 7. Automated Test Suites
+
+```bash
+# Run backend integration & E2E acceptance tests (85 tests):
+backend/.venv/bin/pytest backend/tests -v
+
+# Run frontend unit tests (32 tests):
+npm --prefix frontend test
+
+# Run frontend TypeScript typecheck:
+npm --prefix frontend run typecheck
+
+# Run frontend production build:
+npm --prefix frontend run build
+```
+
+---
+
+## 8. Production Deployment & Cloud Architecture
+
+* **Database:** [Neon PostgreSQL](https://neon.tech) serverless cluster with SSL connection pooling.
+* **Backend:** [Render](https://render.com) Web Service with persistent disk (`/var/data`) using root Blueprint [`render.yaml`](render.yaml).
+* **Frontend:** [Vercel](https://vercel.com) Edge Network using Vite preset and [`frontend/vercel.json`](frontend/vercel.json) client rewrites.
+* **Guide:** Complete step-by-step instructions in [docs/PRODUCTION_DEPLOYMENT_GUIDE.md](docs/PRODUCTION_DEPLOYMENT_GUIDE.md).
+
+### Deployment URLs & Service Matrix
+
+| Component | Target Host | URL | Health Check / Route |
+|---|---|---|---|
+| **Frontend SPA** | Vercel | `https://vana-frontend.vercel.app` | `/dashboard`, `/map`, `/projects` |
+| **Backend API** | Render | `https://vana-backend.onrender.com` | `/health`, `/api/v1/docs` |
+| **PostgreSQL** | Neon | `postgresql+asyncpg://...@ep-*.neon.tech/vana` | Port 5432 (SSL required) |
+| **Source Control** | GitHub | `https://github.com/akshayavana/vana` | Branch: `main` |
+
+---
+
+## 9. Development & Operational Governance
 
 All contributors must review and abide by the permanent engineering rules in [AGENTS.md](AGENTS.md). 
 
 * All changes must proceed through documented milestones outlined in [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md).
 * Completed milestones and test statuses are tracked in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 * All design choices and architectural deviations are recorded in [DECISION_LOG.md](DECISION_LOG.md).
+* Pre-deployment audits and acceptance verifications are documented in [docs/FINAL_PRE_DEPLOYMENT_AUDIT.md](docs/FINAL_PRE_DEPLOYMENT_AUDIT.md).
