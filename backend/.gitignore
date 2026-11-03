@@ -1,0 +1,25 @@
+# Python environment
+.venv/
+venv/
+env/
+
+# Python byte code
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Local storage and logs
+storage/
+uploads/
+*.log

@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: vana-backend
+    env: python
+    region: oregon
+    plan: starter
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt && alembic upgrade head"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: "/health"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: ENVIRONMENT
+        value: production
+      - key: PROJECT_NAME
+        value: "VANA Environmental Operations Platform"
+      - key: API_V1_STR
+        value: /api/v1
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "7"
+      - key: STORAGE_BACKEND
+        value: local
+      - key: STORAGE_LOCAL_ROOT
+        value: /var/data/uploads
+      - key: CORS_ORIGINS
+        sync: false
+    disk:
+      name: vana-evidence-disk
+      mountPath: /var/data
+      sizeGB: 10

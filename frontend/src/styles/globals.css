@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-forest: #183D32;
+    --color-ivory: #F5F3EA;
+    --color-sage: #A8B99B;
+    --color-gold: #D6A76A;
+    --color-charcoal: #29332F;
+    --color-white: #FFFFFF;
+    --color-crimson: #9E3A2B;
+  }
+
+  body {
+    background-color: var(--color-ivory);
+    color: var(--color-charcoal);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Manrope', sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  /* Force tabular numbers for all numerical and timestamp displays */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
