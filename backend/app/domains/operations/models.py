@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -181,6 +182,7 @@ class EvidenceFile(Base):
     latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     caption: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    sha256_checksum: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -189,3 +191,20 @@ class EvidenceFile(Base):
     activity: Mapped[Optional["FieldActivity"]] = relationship("FieldActivity", back_populates="evidence_files")
     revision: Mapped[Optional["ActivityRevision"]] = relationship("ActivityRevision", back_populates="evidence_files")
     inspection: Mapped[Optional["FieldInspection"]] = relationship("FieldInspection", back_populates="evidence_files")
+
+
+class EvidenceBlob(Base):
+    """
+    Binary evidence storage table for PostgreSQL-backed storage adapter.
+    Enables zero-cost deployments on Render Free tier without persistent disks or paid object storage.
+    """
+    __tablename__ = "evidence_blobs"
+
+    storage_key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    file_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    sha256_checksum: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )

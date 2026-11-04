@@ -7,6 +7,7 @@ and immutable audit logging.
 """
 
 from datetime import date, datetime, timezone
+import hashlib
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
@@ -15,6 +16,7 @@ from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.storage import get_storage_service
 from app.domains.audit.services import record_audit_log
 from app.domains.auth.models import User, UserRole
@@ -628,14 +630,22 @@ class InspectionService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="EMPTY_FILE: Evidence file cannot be empty",
             )
-        if len(content) > MAX_FILE_SIZE_BYTES:
+        max_allowed_size = settings.MAX_UPLOAD_SIZE_BYTES
+        if len(content) > max_allowed_size:
+            max_mb = max_allowed_size // (1024 * 1024) or 1
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"FILE_TOO_LARGE: Maximum file size is {MAX_FILE_SIZE_BYTES // (1024 * 1024)} MB",
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"FILE_TOO_LARGE: Maximum file size is {max_mb} MB",
             )
 
         storage = get_storage_service()
-        storage_key = await storage.upload_file(file_content=content, original_filename=file.filename or "evidence.jpg")
+        file_checksum = hashlib.sha256(content).hexdigest()
+        storage_key = await storage.upload_file(
+            file_content=content,
+            original_filename=file.filename or "evidence.jpg",
+            db=db,
+            mime_type=file.content_type,
+        )
 
         evidence = EvidenceFile(
             id=uuid.uuid4(),
@@ -646,6 +656,7 @@ class InspectionService:
             original_filename=file.filename or "evidence.jpg",
             mime_type=file.content_type,
             file_size_bytes=len(content),
+            sha256_checksum=file_checksum,
             latitude=latitude,
             longitude=longitude,
             caption=caption.strip() if caption else None,

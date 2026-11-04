@@ -21,7 +21,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -222,15 +222,22 @@ async def get_evidence_file(
     """
     Streams an evidence file to authorized users.
     Verifies project-level access before streaming content.
+    Supports both local filesystem and PostgreSQL-backed BYTEA storage.
     """
-    file_path, mime_type, filename = await EvidenceService.get_evidence_file_path(
+    file_path, file_bytes, mime_type, filename = await EvidenceService.get_evidence_content(
         db=db, evidence_id=evidence_id, current_user=current_user
     )
 
-    return FileResponse(
-        path=str(file_path),
+    if file_path is not None:
+        return FileResponse(
+            path=str(file_path),
+            media_type=mime_type,
+            filename=filename,
+        )
+    return Response(
+        content=file_bytes,
         media_type=mime_type,
-        filename=filename,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
 
 

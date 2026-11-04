@@ -31,6 +31,10 @@ This document records the architectural and technical decisions made for VANA, d
 * [ADR-023: Full Platform End-to-End Acceptance, Multi-Domain State Invariants & Sandbox Network Isolation](#adr-023-full-platform-end-to-end-acceptance-multi-domain-state-invariants--sandbox-network-isolation)
 * [ADR-024: Production Deployment Hardening, Dynamic Migration Precedence & Exact CORS Security](#adr-024-production-deployment-hardening-dynamic-migration-precedence--exact-cors-security)
 * [ADR-025: Cryptographic Audit Ledger, SHA-256 Hash Chaining, and Transactional Row-Locked Concurrency](#adr-025-cryptographic-audit-ledger-sha-256-hash-chaining-and-transactional-row-locked-concurrency)
+* [ADR-026: Multi-Tenant Audit Query APIs, Project Scoping, and In-Memory Chain Verification](#adr-026-multi-tenant-audit-query-apis-project-scoping-and-in-memory-chain-verification)
+* [ADR-027: Milestone 8 Frontend Audit Ledger, Dynamic State Diffing, and End-to-End Cryptographic Acceptance](#adr-027-milestone-8-frontend-audit-ledger-dynamic-state-diffing-and-end-to-end-cryptographic-acceptance)
+* [ADR-028: Pre-Deployment Bundle Optimization, Production Documentation, and Assignment Deliverables](#adr-028-pre-deployment-bundle-optimization-production-documentation-and-assignment-deliverables)
+* [ADR-029: Strict Zero-Cost Cloud Architecture, Database-Backed Evidence Storage, and Ephemeral Free-Tier Adaptation](#adr-029-strict-zero-cost-cloud-architecture-database-backed-evidence-storage-and-ephemeral-free-tier-adaptation)
 
 ---
 
@@ -550,3 +554,38 @@ This document records the architectural and technical decisions made for VANA, d
   4. **Root README Overhaul:**
      - Completely restructured `README.md` with architecture diagrams, domain breakdown, database ERD, RBAC matrix, local quickstart, testing commands, and troubleshooting.
 * **Consequences:** Eliminates frontend bundle bottlenecks; provides production deployment blueprints; completes every non-deployment deliverable required for the Akshaya Vana technical assignment.
+
+---
+
+### ADR-029: Strict Zero-Cost Cloud Architecture, Database-Backed Evidence Storage, and Ephemeral Free-Tier Adaptation
+* **Status:** Accepted (2026-11-04)
+* **Context:** In order to deploy and operate VANA with strictly zero infrastructure cost and zero financial commitments, the production architecture must operate 100% within the free tiers of Vercel (Hobby), Render (Free), and Neon (Free Lakebase PostgreSQL).
+  - Render Free does not support persistent disks (requires paid Starter plan) and utilizes an ephemeral container filesystem where local uploads are lost on container restart or spin-down.
+  - External object storage providers (AWS S3, Cloudflare R2, Google Cloud Storage) require billing activation, credit card details, or usage-based billing risks.
+  - Neon Free provides 0.5 GB (500 MB) of managed PostgreSQL storage with automatic SSL encryption and point-in-time branch snapshots at zero cost.
+* **Decision:**
+  1. **PostgreSQL-Backed Evidence Storage Adapter (`DatabaseStorageService`):**
+     - Implemented `DatabaseStorageService` in `backend/app/core/storage.py` implementing `IStorageService`.
+     - Stored binary evidence payloads directly in PostgreSQL using `BYTEA` via table `evidence_blobs` (`storage_key`, `file_data`, `sha256_checksum`, `file_size_bytes`, `mime_type`, `created_at`).
+     - Added column `sha256_checksum` (`VARCHAR(64)`) to `evidence_files` to enable end-to-end cryptographic integrity tracking from client upload to database read.
+     - Preserved `LocalStorageService` for local development and persistent-disk environments, selectable dynamically via `STORAGE_BACKEND="database"` vs `"local"`.
+  2. **Cryptographic Checksum Verification & Tamper Protection:**
+     - Computed SHA-256 hashes upon upload and verified them on every binary retrieval from PostgreSQL `BYTEA` or disk.
+     - Enforced path traversal defense across all storage backends via `validate_storage_key`.
+  3. **Free-Tier Operational Quotas & Guardrails:**
+     - Enforced configurable upload size ceiling `MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024` (5 MB default for free tier) returning HTTP 413 (`FILE_TOO_LARGE`) to prevent quota exhaustion on Neon's 500 MB storage allocation.
+     - Restricted MIME types strictly to valid environmental evidence formats (`image/jpeg`, `image/png`, `image/webp`, `application/pdf`).
+     - Implemented automatic binary deduplication in `DatabaseStorageService` so identical photos share a single storage record.
+  4. **Render Free Tier Blueprint (`render.yaml`):**
+     - Configured service `plan: free`.
+     - Removed persistent disk block (`vana-evidence-disk`, mountPath `/var/data`).
+     - Set `STORAGE_BACKEND: database` and `MAX_UPLOAD_SIZE_BYTES: 5242880`.
+     - Preserved `preDeployCommand: "alembic upgrade head"` so database migrations run only during Git deployments, avoiding cold-start latency overhead on app restarts.
+  5. **Alembic Reversible Migration (`0004_database_evidence_storage.py`):**
+     - Created `evidence_blobs` table and index on `sha256_checksum`.
+     - Added `sha256_checksum` column to `evidence_files`.
+     - Tested full two-way migration cycle (downgrade to base, upgrade to head, repeated) with zero errors.
+* **Consequences:**
+  - Enables a fully operational, production-grade VANA deployment at $0.00 cost with no credit card or paid subscription required.
+  - Guarantees evidence durability across Render Free container recycles and cold-start spin-downs.
+  - Test suite expanded to 172 backend tests (including 8 new database storage unit and integration tests) and 99 frontend tests, with 100% pass rate.

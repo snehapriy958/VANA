@@ -3,7 +3,7 @@ services:
     name: vana-backend
     env: python
     region: oregon
-    plan: starter
+    plan: free
     rootDir: backend
     buildCommand: "pip install -r requirements.txt"
     preDeployCommand: "alembic upgrade head"
@@ -29,12 +29,8 @@ services:
       - key: REFRESH_TOKEN_EXPIRE_DAYS
         value: "7"
       - key: STORAGE_BACKEND
-        value: local
-      - key: STORAGE_LOCAL_ROOT
-        value: /var/data/uploads
+        value: database
+      - key: MAX_UPLOAD_SIZE_BYTES
+        value: "5242880"
       - key: CORS_ORIGINS
         sync: false
-    disk:
-      name: vana-evidence-disk
-      mountPath: /var/data
-      sizeGB: 10

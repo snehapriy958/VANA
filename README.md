@@ -52,16 +52,18 @@ VANA is architected as a **Domain-Driven Modular Monolith**, ensuring strong tra
                            │  • auth         • projects   • teams         │
                            │  • operations   • verify     • analytics     │
                            │  • monitoring   • audit      • storage       │
-                           └──────────────┬──────────────────┬────────────┘
-                                          │                  │
-                             TCP (SSL)    │                  │ File I/O
-                             (asyncpg)    ▼                  ▼ (/var/data)
-                          ┌────────────────────┐    ┌─────────────────────┐
-                          │  Neon PostgreSQL   │    │ Render Ext4 Disk    │
-                          │   Serverless PG 17 │    │ 10 GB Storage Root  │
-                          │   Ledger & Chains  │    │ Evidence File Vault │
-                          └────────────────────┘    └─────────────────────┘
-```
+                           └──────────────────────┬───────────────────────┘
+                                                  │
+                                     TCP (SSL)    │
+                                     (asyncpg)    ▼
+                           ┌──────────────────────────────────────────────┐
+                           │               Neon PostgreSQL                │
+                           │          Serverless PostgreSQL 17            │
+                           │   • 5-Ledger Environmental System of Record  │
+                           │   • SHA-256 Cryptographic Immutability Chain │
+                           │   • BYTEA Evidence Blob Storage (Zero-Cost)  │
+                           └──────────────────────────────────────────────┘
+`
 
 ---
 
@@ -79,7 +81,8 @@ VANA is architected as a **Domain-Driven Modular Monolith**, ensuring strong tra
 | **Database Migrations** | Alembic | Version-controlled, reversible schema alterations |
 | **System of Record** | PostgreSQL 17 | Authoritative ACID relational storage with partial unique indices |
 | **Authentication & RBAC** | Argon2id + PyJWT | Zero-knowledge password hashing and cryptographically signed JWT tokens |
-| **Cloud Hosting** | Neon + Render + Vercel | Serverless PostgreSQL + persistent disk backend + global edge SPA |
+| **Evidence Storage** | PostgreSQL BYTEA / Local | Content-addressed SHA-256 binary storage adapter (zero-cost cloud / local disk) |
+| **Cloud Hosting** | Neon + Render + Vercel | Strictly zero-cost deployment (Render Free + Vercel Hobby + Neon Free) |
 
 ---
 
@@ -299,36 +302,39 @@ python -m app.bootstrap_admin
 All test suites run independently and achieve 100% pass rates:
 
 ```bash
-# 1. Run Complete Backend Regression Suite (164 tests):
+# 1. Run Complete Backend Regression Suite (172 tests):
 cd backend
 pytest -q
 
-# 2. Run Dedicated Audit & Cryptographic Ledger Tests (24 tests):
+# 2. Run Database Evidence Storage Tests (8 tests):
+pytest tests/test_database_evidence_storage.py -v
+
+# 3. Run Dedicated Audit & Cryptographic Ledger Tests (24 tests):
 pytest tests/domains/audit/test_audit_ledger.py tests/domains/audit/test_audit_api.py -v
 
-# 3. Run Full-Lifecycle 14-Step E2E Acceptance Test:
+# 4. Run Full-Lifecycle 14-Step E2E Acceptance Test:
 pytest tests/domains/audit/test_audit_e2e_acceptance.py -v
 
-# 4. Run Frontend Automated Unit & Integration Tests (99 tests):
+# 5. Run Frontend Automated Unit & Integration Tests (99 tests):
 cd ../frontend
 npm test -- --run
 
-# 5. Run Frontend TypeScript Typecheck (0 errors):
+# 6. Run Frontend TypeScript Typecheck (0 errors):
 npm run typecheck
 
-# 6. Run Frontend Production Build:
+# 7. Run Frontend Production Build:
 npm run build
 ```
 
 ---
 
-## 10. Production Deployment Architecture (Neon + Render + Vercel)
+## 10. Strictly Zero-Cost Production Deployment (Neon + Render + Vercel)
 
 The deployment blueprint is specified in `render.yaml` and `frontend/vercel.json`:
-- **Neon Cloud PostgreSQL:** Serverless PostgreSQL 17 with automated SSL connection pooling (`DATABASE_URL`) and direct migration connectivity (`ALEMBIC_DATABASE_URL`).
-- **Render Web Service:** Automated Blueprint deploying Python 3.12, executing `preDeployCommand: alembic upgrade head`, with a 10 GB persistent disk mounted at `/var/data` for content-addressed photo evidence.
-- **Vercel Edge Network:** Optimized Vite SPA deployment with client-side routing rewrites (`vercel.json`) and route-level lazy loading.
-- **Full Deployment Blueprint:** Detailed step-by-step instructions in [docs/PRODUCTION_DEPLOYMENT_GUIDE.md](docs/PRODUCTION_DEPLOYMENT_GUIDE.md).
+- **Neon Cloud PostgreSQL (Free Tier):** Serverless PostgreSQL 17 system of record, SHA-256 audit chain head, and durable binary evidence storage (`BYTEA` in `evidence_blobs`).
+- **Render Web Service (Free Tier):** Automated Blueprint deploying Python 3.12 on Render Free (`plan: free`), executing `preDeployCommand: alembic upgrade head`, with zero persistent disk dependencies and database-backed evidence storage.
+- **Vercel Edge Network (Hobby Free Tier):** Optimized Vite SPA deployment with client-side routing rewrites (`vercel.json`) and route-level lazy loading.
+- **Full Zero-Cost Blueprint:** Detailed step-by-step instructions in [docs/PRODUCTION_DEPLOYMENT_GUIDE.md](docs/PRODUCTION_DEPLOYMENT_GUIDE.md).
 
 ---
 

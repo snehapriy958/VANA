@@ -1,7 +1,7 @@
 # VANA — Implementation Status
 
-**Current Stage:** Final Pre-Deployment Completion & Assignment Deliverables Completed | All 11 Domains Fully Verified (Milestones 1A–5, 6.1–6.6, 8.1–8.3, Production Readiness)\
-**Overall Status:** All Implemented Domains 100% Complete, Hardened, End-to-End Audited & Production Ready (164 Backend + 99 Frontend Tests Passed, 100% Pass Rate)\
+**Current Stage:** Strictly Zero-Cost Deployment Adaptation Completed | All 11 Domains Fully Verified (Milestones 1A–5, 6.1–6.6, 8.1–8.3, Zero-Cost Cloud Architecture)\
+**Overall Status:** All Implemented Domains 100% Complete, Hardened, End-to-End Audited & Production Ready (172 Backend + 99 Frontend Tests Passed, 100% Pass Rate)\
 **Last Updated:** 2026-11-04\
 
 ---
@@ -28,6 +28,7 @@
 | **Phase 8.1** | Cryptographic Hashing Engine & Ledger Migration | **COMPLETED** | 2026-11-04 | 2026-11-04 | 100% (150/150 Backend, 88/88 Frontend) | Independent Review Accepted |
 | **Phase 8.2** | Immutable Verification History & Audit APIs | **COMPLETED** | 2026-11-04 | 2026-11-04 | 100% (161/161 Backend, 88/88 Frontend) | Phase 8.1 Findings Remediated |
 | **Phase 8.3** | Frontend Audit Ledger & Full-Lifecycle Acceptance | **COMPLETED & ACCEPTED** | 2026-11-04 | 2026-11-04 | 100% (164/164 Backend, 99/99 Frontend) | Acceptance Audit PASS & Approved |
+| **Zero-Cost Adaptation** | PostgreSQL BYTEA Storage & Render Free Tier | **COMPLETED & ACCEPTED** | 2026-11-04 | 2026-11-04 | 100% (172/172 Backend, 99/99 Frontend) | Zero-Cost Deployment Ready |
 | **M7** | Executive Analytics & Reporting | PENDING | TBD | — | 0% | — |
 
 ---
@@ -485,8 +486,38 @@
 * [x] **Root README Overhaul:**
   * Completely restructured [README.md](README.md) with architectural diagrams, technology stack, database ERD, RBAC matrix, local quickstart, testing commands, and troubleshooting.
 * [x] **Full Regression & Build Verification:**
-  * Backend regression suite: **164/164 tests passed (100%)**.
+  * Backend regression suite: **172/172 tests passed (100%)**.
   * Frontend test suite: **99/99 tests passed (100%)**.
   * TypeScript typecheck: clean (`tsc --noEmit`, exit 0).
-  * Production build: clean (`tsc -b && vite build` in 11.89s, exit 0).
+  * Production build: clean (`tsc -b && vite build` in 12.58s, exit 0).
   * Whitespace check: clean (`git diff --check`, 0 warnings).
+
+---
+
+## 18. Strictly Zero-Cost Cloud Deployment Adaptation
+
+* [x] **PostgreSQL BYTEA Evidence Storage Adapter:**
+  * Implemented `DatabaseStorageService` in `backend/app/core/storage.py` implementing `IStorageService`.
+  * Stored binary photo evidence payloads directly in Neon PostgreSQL as `BYTEA` via table `evidence_blobs`.
+  * Preserved `LocalStorageService` for local development and persistent-disk environments (`STORAGE_BACKEND="database"` vs `"local"`).
+* [x] **Cryptographic Checksum & Path Traversal Verification:**
+  * Computed SHA-256 hashes on upload and verified on every binary read from PostgreSQL `BYTEA` or disk.
+  * Added `sha256_checksum` column on `evidence_files` for metadata tracking.
+  * Tested path traversal attack prevention across storage drivers via `validate_storage_key`.
+* [x] **Free-Tier Operational Safeguards:**
+  * Enforced configurable upload size ceiling `MAX_UPLOAD_SIZE_BYTES=5242880` (5 MB ceiling), returning `HTTP 413 Payload Too Large`.
+  * Enforced MIME type validation (`image/jpeg`, `image/png`, `image/webp`, `application/pdf`), returning `HTTP 400 Bad Request`.
+  * Implemented binary deduplication in `DatabaseStorageService` to preserve Neon's 500 MB storage allocation.
+* [x] **Render Free Tier Blueprint (`render.yaml`):**
+  * Configured service `plan: free`.
+  * Removed persistent disk block (`vana-evidence-disk`, mountPath `/var/data`).
+  * Set `STORAGE_BACKEND: database` and `MAX_UPLOAD_SIZE_BYTES: 5242880`.
+  * Maintained `preDeployCommand: "alembic upgrade head"` so migrations run during build/deployment, not on routine container spin-ups.
+* [x] **Alembic Reversible Migration (`0004_database_evidence_storage.py`):**
+  * Created table `evidence_blobs` and index on `sha256_checksum`.
+  * Added `sha256_checksum` column to `evidence_files`.
+  * Two-way migration cycle (`upgrade head` $\to$ `downgrade base` $\to$ `upgrade head`) verified clean.
+* [x] **Automated Test Coverage:**
+  * Dedicated test suite `backend/tests/test_database_evidence_storage.py` (8/8 tests passed).
+  * Total backend regression suite: **172/172 tests passed (100%)**.
+  * Total frontend test suite: **99/99 tests passed (100%)**.

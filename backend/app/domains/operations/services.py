@@ -6,6 +6,7 @@ immutable revision history, evidence storage, and 5-ledger accounting.
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import hashlib
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -16,7 +17,8 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.storage import get_storage_service
+from app.core.config import settings
+from app.core.storage import DatabaseStorageService, get_storage_service
 from app.domains.audit.services import record_audit_log
 from app.domains.auth.models import User, UserRole
 from app.domains.operations.models import (
@@ -48,7 +50,7 @@ ALLOWED_MIME_TYPES = {
     "image/webp",
     "application/pdf",
 }
-MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_FILE_SIZE_BYTES = settings.MAX_UPLOAD_SIZE_BYTES  # 5 MB configurable ceiling for free tier
 MAX_FILES_PER_SUBMISSION = 5
 
 
@@ -191,12 +193,14 @@ class ActivityService:
 
                 if file_size == 0:
                     continue
-                if file_size > MAX_FILE_SIZE_BYTES:
+                max_allowed_size = settings.MAX_UPLOAD_SIZE_BYTES
+                if file_size > max_allowed_size:
+                    max_mb = max_allowed_size // (1024 * 1024) or 1
                     raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                         detail={
                             "error_code": "FILE_TOO_LARGE",
-                            "message": f"File '{file.filename}' exceeds maximum allowable size of 10 MB.",
+                            "message": f"File '{file.filename}' exceeds maximum allowable size of {max_mb} MB.",
                         },
                     )
 
@@ -211,7 +215,10 @@ class ActivityService:
                     )
 
                 safe_name = os.path.basename(file.filename)
-                storage_key = await storage.upload_file(content, safe_name)
+                file_checksum = hashlib.sha256(content).hexdigest()
+                storage_key = await storage.upload_file(
+                    content, safe_name, db=db, mime_type=mime_type
+                )
 
                 evidence = EvidenceFile(
                     activity_id=activity.id,
@@ -220,6 +227,7 @@ class ActivityService:
                     original_filename=safe_name,
                     mime_type=mime_type,
                     file_size_bytes=file_size,
+                    sha256_checksum=file_checksum,
                 )
                 db.add(evidence)
                 evidence_records.append(evidence)
@@ -381,12 +389,14 @@ class ActivityService:
                 file_size = len(content)
                 if file_size == 0:
                     continue
-                if file_size > MAX_FILE_SIZE_BYTES:
+                max_allowed_size = settings.MAX_UPLOAD_SIZE_BYTES
+                if file_size > max_allowed_size:
+                    max_mb = max_allowed_size // (1024 * 1024) or 1
                     raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                         detail={
                             "error_code": "FILE_TOO_LARGE",
-                            "message": f"File '{file.filename}' exceeds maximum allowable size of 10 MB.",
+                            "message": f"File '{file.filename}' exceeds maximum allowable size of {max_mb} MB.",
                         },
                     )
 
@@ -401,7 +411,10 @@ class ActivityService:
                     )
 
                 safe_name = os.path.basename(file.filename)
-                storage_key = await storage.upload_file(content, safe_name)
+                file_checksum = hashlib.sha256(content).hexdigest()
+                storage_key = await storage.upload_file(
+                    content, safe_name, db=db, mime_type=mime_type
+                )
 
                 evidence = EvidenceFile(
                     activity_id=activity.id,
@@ -410,6 +423,7 @@ class ActivityService:
                     original_filename=safe_name,
                     mime_type=mime_type,
                     file_size_bytes=file_size,
+                    sha256_checksum=file_checksum,
                 )
                 db.add(evidence)
                 evidence_records.append(evidence)
@@ -1005,13 +1019,14 @@ class VerificationService:
 
 class EvidenceService:
     @staticmethod
-    async def get_evidence_file_path(
+    async def get_evidence_content(
         db: AsyncSession, evidence_id: uuid.UUID, current_user: User
-    ) -> Tuple[Path, str, str]:
+    ) -> Tuple[Optional[Path], Optional[bytes], str, str]:
         """
-        Resolves evidence file path and metadata.
+        Resolves evidence file content (local Path or in-memory bytes) and metadata.
         Enforces project-level authorization before serving file bytes.
-        Returns: (file_path, mime_type, original_filename)
+        Verifies SHA-256 cryptographic checksum integrity.
+        Returns: (file_path, file_bytes, mime_type, original_filename)
         """
         stmt = (
             select(EvidenceFile)
@@ -1043,6 +1058,46 @@ class EvidenceService:
             )
 
         storage = get_storage_service()
+        backend_name = (settings.STORAGE_BACKEND or "local").lower().strip()
+
+        # Database storage backend
+        if backend_name in ("database", "postgres", "postgresql", "db"):
+            try:
+                file_bytes = await storage.get_file_bytes(evidence.file_storage_key, db=db)
+            except ValueError as e:
+                if "path traversal" in str(e).lower() or "illegal characters" in str(e).lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={"error_code": "INVALID_STORAGE_KEY", "message": str(e)},
+                    )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"error_code": "CHECKSUM_MISMATCH", "message": str(e)},
+                )
+            except FileNotFoundError:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "error_code": "FILE_NOT_FOUND_IN_DATABASE",
+                        "message": "The physical evidence blob could not be found in database storage.",
+                    },
+                )
+
+            # Metadata checksum cross-check if recorded
+            if evidence.sha256_checksum:
+                computed = hashlib.sha256(file_bytes).hexdigest()
+                if computed != evidence.sha256_checksum:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail={
+                            "error_code": "CHECKSUM_MISMATCH",
+                            "message": "Cryptographic checksum verification failed for evidence file.",
+                        },
+                    )
+
+            return None, file_bytes, evidence.mime_type, evidence.original_filename
+
+        # Local storage backend
         try:
             file_path = storage.get_file_path(evidence.file_storage_key)
         except ValueError as e:
@@ -1055,6 +1110,14 @@ class EvidenceService:
             )
 
         if not file_path.exists():
+            # Fallback to database storage if blob exists in database
+            try:
+                db_storage = DatabaseStorageService()
+                file_bytes = await db_storage.get_file_bytes(evidence.file_storage_key, db=db)
+                return None, file_bytes, evidence.mime_type, evidence.original_filename
+            except Exception:
+                pass
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
@@ -1063,4 +1126,25 @@ class EvidenceService:
                 },
             )
 
-        return file_path, evidence.mime_type, evidence.original_filename
+        return file_path, None, evidence.mime_type, evidence.original_filename
+
+    @staticmethod
+    async def get_evidence_file_path(
+        db: AsyncSession, evidence_id: uuid.UUID, current_user: User
+    ) -> Tuple[Path, str, str]:
+        """
+        Resolves evidence file path and metadata (for local filesystem storage).
+        Maintained for backwards-compatibility.
+        """
+        file_path, file_bytes, mime_type, filename = await EvidenceService.get_evidence_content(
+            db=db, evidence_id=evidence_id, current_user=current_user
+        )
+        if file_path is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error_code": "DATABASE_STORAGE_ACTIVE",
+                    "message": "Evidence is stored in database BYTEA; use get_evidence_content() to stream.",
+                },
+            )
+        return file_path, mime_type, filename

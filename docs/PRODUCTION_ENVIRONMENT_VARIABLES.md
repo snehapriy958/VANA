@@ -21,8 +21,9 @@ These variables must be configured in Render Dashboard under **Environment Varia
 | `JWT_ALGORITHM` | No | `HS256` | Cryptographic algorithm for JWT signatures. |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `60` | Lifespan of short-lived JWT access tokens in minutes. |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | No | `7` | Lifespan of refresh tokens in days. |
-| `STORAGE_BACKEND` | No | `local` | Storage driver implementation (`local`). |
-| `STORAGE_LOCAL_ROOT` | **YES** | `/var/data/uploads` | Local filesystem path on Render Persistent Disk for evidence photos. |
+| `STORAGE_BACKEND` | No | `database` | Storage driver implementation (`database` for zero-cost PostgreSQL BYTEA storage; `local` for filesystem storage). |
+| `MAX_UPLOAD_SIZE_BYTES` | No | `5242880` | Maximum allowable evidence file size in bytes (5 MB ceiling for free-tier Neon storage protection). |
+| `STORAGE_LOCAL_ROOT` | No | `uploads` | Local filesystem path fallback when `STORAGE_BACKEND=local`. |
 | `CORS_ORIGINS` | **YES** | `["https://vana-app.vercel.app"]` | JSON-encoded array of allowed frontend origin URLs. Wildcards and `*` are forbidden when credentials are enabled. |
 
 ---

@@ -66,9 +66,20 @@ class Settings(BaseSettings):
     # Storage
     STORAGE_BACKEND: str = "local"
     STORAGE_LOCAL_ROOT: str = "uploads"
+    MAX_UPLOAD_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB configurable ceiling for free tier
 
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    @field_validator("STORAGE_BACKEND", mode="before")
+    @classmethod
+    def normalize_storage_backend(cls, v: str) -> str:
+        if isinstance(v, str):
+            clean = v.strip().lower()
+            if clean in ("postgres", "postgresql", "db"):
+                return "database"
+            return clean
+        return v
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
