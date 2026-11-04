@@ -737,6 +737,108 @@ async def test_archiving_activity_deactivates_active_ledger_entry(
     assert rev_db.is_active_ledger_entry is False
 
 
+@pytest.mark.asyncio
+async def test_archiving_ledger_invariants_verified_reduction_and_rejected_unchanged(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """
+    Verifies that:
+    1. Archiving an activity with an active verified revision (1,800 trees)
+       reduces the official verified quantity by exactly 1,800 trees.
+    2. Archiving an activity with only rejected revisions (800 trees)
+       leaves the official verified quantity completely unchanged.
+    """
+    project = await setup_test_project_with_target(db_session, target_qty=Decimal("10000.0"))
+    fo, fo_headers = await create_user_helper(db_session, UserRole.FIELD_OFFICER.value, "FO Submitter")
+    admin, admin_headers = await create_user_helper(db_session, UserRole.ADMIN.value, "Admin Reviewer")
+
+    db_session.add(
+        ProjectAssignment(project_id=project.id, user_id=fo.id, assigned_role="FIELD_OFFICER")
+    )
+    await db_session.commit()
+
+    # 1. Create and verify Activity A (1,800 trees)
+    create_a = await client.post(
+        "/api/v1/operations/activities",
+        data={
+            "project_id": str(project.id),
+            "metric_code": "TREES_PLANTED",
+            "quantity": "1800.00",
+            "unit": "trees",
+            "activity_date": "2026-11-02",
+        },
+        headers=fo_headers,
+    )
+    act_a_id = create_a.json()["id"]
+    rev_a_id = create_a.json()["current_revision"]["id"]
+
+    await client.post(
+        f"/api/v1/verification/revisions/{rev_a_id}/decision",
+        json={"decision": "VERIFIED"},
+        headers=admin_headers,
+    )
+
+    # 2. Create and reject Activity B (800 trees)
+    create_b = await client.post(
+        "/api/v1/operations/activities",
+        data={
+            "project_id": str(project.id),
+            "metric_code": "TREES_PLANTED",
+            "quantity": "800.00",
+            "unit": "trees",
+            "activity_date": "2026-11-03",
+        },
+        headers=fo_headers,
+    )
+    act_b_id = create_b.json()["id"]
+    rev_b_id = create_b.json()["current_revision"]["id"]
+
+    await client.post(
+        f"/api/v1/verification/revisions/{rev_b_id}/decision",
+        json={
+            "decision": "REJECTED",
+            "rejection_reason_code": "INSUFFICIENT_EVIDENCE",
+            "review_notes": "No proof",
+        },
+        headers=admin_headers,
+    )
+
+    # 3. Check baseline verified quantity: exactly 1,800 trees
+    impact_baseline = await client.get(
+        f"/api/v1/analytics/projects/{project.id}/impact", headers=admin_headers
+    )
+    t_base = next(t for t in impact_baseline.json()["targets"] if t["metric_code"] == "TREES_PLANTED")
+    assert Decimal(str(t_base["verified_quantity"])) == Decimal("1800.00")
+
+    # 4. Invariant 1: Archive rejected Activity B -> verified quantity remains unchanged at 1,800 trees
+    archive_b = await client.delete(
+        f"/api/v1/operations/activities/{act_b_id}", headers=admin_headers
+    )
+    assert archive_b.status_code == 200
+    assert archive_b.json()["status"] == "ARCHIVED"
+    assert archive_b.json()["deactivated_revision_id"] is None
+
+    impact_after_b = await client.get(
+        f"/api/v1/analytics/projects/{project.id}/impact", headers=admin_headers
+    )
+    t_after_b = next(t for t in impact_after_b.json()["targets"] if t["metric_code"] == "TREES_PLANTED")
+    assert Decimal(str(t_after_b["verified_quantity"])) == Decimal("1800.00")
+
+    # 5. Invariant 2: Archive verified Activity A (1,800 trees) -> verified quantity drops by exactly 1,800 to 0
+    archive_a = await client.delete(
+        f"/api/v1/operations/activities/{act_a_id}", headers=admin_headers
+    )
+    assert archive_a.status_code == 200
+    assert archive_a.json()["status"] == "ARCHIVED"
+    assert archive_a.json()["deactivated_revision_id"] == rev_a_id
+
+    impact_after_a = await client.get(
+        f"/api/v1/analytics/projects/{project.id}/impact", headers=admin_headers
+    )
+    t_after_a = next(t for t in impact_after_a.json()["targets"] if t["metric_code"] == "TREES_PLANTED")
+    assert Decimal(str(t_after_a["verified_quantity"])) == Decimal("0.00")
+
+
 # ============================================================================
 # 7. Concurrency & Race Condition Safeguard
 # ============================================================================

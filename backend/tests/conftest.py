@@ -21,6 +21,10 @@ test_engine = create_async_engine(
     echo=False,
     future=True,
     poolclass=pool.NullPool,
+    connect_args={
+        "command_timeout": 30,
+        "timeout": 10,
+    },
 )
 
 TestingSessionLocal = async_sessionmaker(
@@ -35,16 +39,23 @@ TestingSessionLocal = async_sessionmaker(
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_database():
     """Apply Alembic migrations to the test database before running tests."""
+    old_alembic_url = os.environ.get("ALEMBIC_DATABASE_URL")
     backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     alembic_ini_path = os.path.join(backend_dir, "alembic.ini")
     alembic_cfg = Config(alembic_ini_path)
     alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
     alembic_cfg.set_main_option("sqlalchemy.url", settings.TEST_DATABASE_URL)
+    os.environ["ALEMBIC_DATABASE_URL"] = settings.TEST_DATABASE_URL
     
-    # Run migration upgrade to head
-    command.upgrade(alembic_cfg, "head")
-    
-    yield
+    try:
+        # Run migration upgrade to head
+        command.upgrade(alembic_cfg, "head")
+        yield
+    finally:
+        if old_alembic_url is not None:
+            os.environ["ALEMBIC_DATABASE_URL"] = old_alembic_url
+        else:
+            os.environ.pop("ALEMBIC_DATABASE_URL", None)
 
 
 @pytest_asyncio.fixture
