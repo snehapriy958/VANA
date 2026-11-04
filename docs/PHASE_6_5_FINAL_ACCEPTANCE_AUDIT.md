@@ -1,8 +1,8 @@
 # VANA Phase 6.5: Field Monitoring UI & Workspaces — Final Acceptance Audit
 
-**Audit Date:** 2026-11-04  
-**Audit Milestone:** Phase 6.5 — Field Monitoring UI & Workspaces  
-**Overall Verdict:** **PASS** (100% Verified against Live Database, API, and Headless Browser Automation)  
+**Audit Date:** 2026-11-04\
+**Audit Milestone:** Phase 6.5 — Field Monitoring UI & Workspaces\
+**Overall Verdict:** **PASS** (100% Verified against Live Database, API, and Headless Browser Automation)\
 
 ---
 
@@ -178,20 +178,20 @@ flowchart LR
 ### Captured Workspace Screenshots
 All screenshots were captured on live authenticated sessions with the admin user and saved to [`docs/screenshots/`](file:///c:/Developers/Sneha/Projects/VANA/docs/screenshots):
 
-1. **Monitoring Overview Workspace:**  
-   [`docs/screenshots/monitoring_overview.png`](file:///c:/Developers/Sneha/Projects/VANA/docs/screenshots/monitoring_overview.png) *(141,934 bytes)*  
+1. **Monitoring Overview Workspace:**\
+   [`docs/screenshots/monitoring_overview.png`](file:///c:/Developers/Sneha/Projects/VANA/docs/screenshots/monitoring_overview.png) *(141,934 bytes)*\
    *Verified elements:* 6 KPI metric cards, dynamic alerts banner, upcoming inspections feed, attention tasks, and recent survival observations.
 
-2. **Field Inspections Workspace:**  
-   [`docs/screenshots/monitoring_inspections.png`](file:///c:/Developers/Sneha/Projects/VANA/docs/screenshots/monitoring_inspections.png) *(114,037 bytes)*  
+2. **Field Inspections Workspace:**\
+   [`docs/screenshots/monitoring_inspections.png`](file:///c:/Developers/Sneha/Projects/VANA/docs/screenshots/monitoring_inspections.png) *(114,037 bytes)*\
    *Verified elements:* Filter bar (status, type, inspector), inspection table with status badges (`COMPLETED`, `IN_PROGRESS`), and action buttons.
 
-3. **Maintenance Tasks Workspace:**  
-   [`docs/screenshots/monitoring_tasks.png`](file:///c:/Developers/Sneha/Projects/VANA/docs/screenshots/monitoring_tasks.png) *(117,956 bytes)*  
+3. **Maintenance Tasks Workspace:**\
+   [`docs/screenshots/monitoring_tasks.png`](file:///c:/Developers/Sneha/Projects/VANA/docs/screenshots/monitoring_tasks.png) *(117,956 bytes)*\
    *Verified elements:* Category and priority filters, task list with priority badges (`HIGH`, `MEDIUM`), overdue indicators, and lifecycle action modals.
 
-4. **Survival Monitoring Workspace:**  
-   [`docs/screenshots/monitoring_survival.png`](file:///c:/Developers/Sneha/Projects/VANA/docs/screenshots/monitoring_survival.png) *(131,708 bytes)*  
+4. **Survival Monitoring Workspace:**\
+   [`docs/screenshots/monitoring_survival.png`](file:///c:/Developers/Sneha/Projects/VANA/docs/screenshots/monitoring_survival.png) *(131,708 bytes)*\
    *Verified elements:* Longitudinal trajectory analytics chart (Recharts curve), sample vs. census observation table, observed survival rates, and record observation modal trigger.
 
 ---

@@ -1,7 +1,7 @@
 # VANA Phase 6 — Field Monitoring & Follow-up Management: RBAC Matrix & Security Boundaries
 
-> **Document Status:** Final Gate Approved  
-> **Target Release:** VANA Phase 6 (Milestone 6)  
+> **Document Status:** Final Gate Approved\
+> **Target Release:** VANA Phase 6 (Milestone 6)\
 > **Traceability:** Aligns with `AGENTS.md` (Rules 4, 6), `docs/PHASE_6_FINAL_IMPLEMENTATION_GATE.md`.
 
 ---

@@ -1,7 +1,7 @@
 # VANA Phase 6 — Field Monitoring & Follow-up Management: Implementation Plan
 
-> **Document Status:** Final Gate Approved  
-> **Target Release:** VANA Phase 6 (Milestone 6)  
+> **Document Status:** Final Gate Approved\
+> **Target Release:** VANA Phase 6 (Milestone 6)\
 > **Traceability:** Aligns with `AGENTS.md` (Rules 1, 4, 6, 7, 8, 9, 11), `docs/PHASE_6_FINAL_IMPLEMENTATION_GATE.md`.
 
 ---

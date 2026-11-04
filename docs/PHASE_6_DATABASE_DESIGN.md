@@ -1,10 +1,10 @@
 # VANA Phase 6 — Field Monitoring & Follow-up Management: Database Schema & Migration Design
 
-> **Document Status:** Final Gate Approved with Database Integrity Corrections  
-> **Target Release:** VANA Phase 6 (Milestone 6)  
-> **Migration ID:** `0002_field_monitoring`  
-> **Down Revision:** `0001_initial_schema` (Empirically verified on live database)  
-> **Database Engine:** PostgreSQL 17.0  
+> **Document Status:** Final Gate Approved with Database Integrity Corrections\
+> **Target Release:** VANA Phase 6 (Milestone 6)\
+> **Migration ID:** `0002_field_monitoring`\
+> **Down Revision:** `0001_initial_schema` (Empirically verified on live database)\
+> **Database Engine:** PostgreSQL 17.0\
 > **Traceability:** Aligns with `AGENTS.md` (Rules 1, 2, 3, 6, 7, 8, 9), `docs/PHASE_6_FINAL_IMPLEMENTATION_GATE.md`.
 
 ---

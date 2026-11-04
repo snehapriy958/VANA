@@ -1,8 +1,8 @@
 # VANA Phase 6 — Field Monitoring & Follow-up Management: Architecture & System Design
 
-> **Document Status:** Final Gate Approved with Database Integrity Corrections  
-> **Release Target:** VANA Phase 6 (Milestone 6)  
-> **Domain Package:** `backend/app/domains/monitoring`  
+> **Document Status:** Final Gate Approved with Database Integrity Corrections\
+> **Release Target:** VANA Phase 6 (Milestone 6)\
+> **Domain Package:** `backend/app/domains/monitoring`\
 > **Traceability:** Aligns with `AGENTS.md` (Rules 1, 4, 6, 7, 8, 9), `docs/PHASE_6_FINAL_IMPLEMENTATION_GATE.md`.
 
 ---

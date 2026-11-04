@@ -1,8 +1,8 @@
 # VANA Phase 6 — Field Monitoring & Follow-up Management: Acceptance Criteria
 
-> **Document Status:** Final Gate Approved with Database Integrity Corrections  
-> **Target Release:** VANA Phase 6 (Milestone 6)  
-> **Scope:** Testable acceptance criteria, Given-When-Then behavioral specifications, and verification scenarios.  
+> **Document Status:** Final Gate Approved with Database Integrity Corrections\
+> **Target Release:** VANA Phase 6 (Milestone 6)\
+> **Scope:** Testable acceptance criteria, Given-When-Then behavioral specifications, and verification scenarios.\
 > **Traceability:** Aligns with `AGENTS.md` (Rules 1, 4, 6, 7, 8, 9), `docs/PHASE_6_FINAL_IMPLEMENTATION_GATE.md`.
 
 ---
