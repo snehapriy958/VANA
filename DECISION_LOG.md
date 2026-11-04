@@ -29,6 +29,8 @@ This document records the architectural and technical decisions made for VANA, d
 * [ADR-021: Frontend Monitoring API Integration, Type Synchronization & TanStack Query Cache Architecture](#adr-021-frontend-monitoring-api-integration-type-synchronization--tanstack-query-cache-architecture)
 * [ADR-022: Field Monitoring UI Workspaces, Live Previews & Immutability Architecture](#adr-022-field-monitoring-ui-workspaces-live-previews--immutability-architecture)
 * [ADR-023: Full Platform End-to-End Acceptance, Multi-Domain State Invariants & Sandbox Network Isolation](#adr-023-full-platform-end-to-end-acceptance-multi-domain-state-invariants--sandbox-network-isolation)
+* [ADR-024: Production Deployment Hardening, Dynamic Migration Precedence & Exact CORS Security](#adr-024-production-deployment-hardening-dynamic-migration-precedence--exact-cors-security)
+* [ADR-025: Cryptographic Audit Ledger, SHA-256 Hash Chaining, and Transactional Row-Locked Concurrency](#adr-025-cryptographic-audit-ledger-sha-256-hash-chaining-and-transactional-row-locked-concurrency)
 
 ---
 
@@ -420,3 +422,131 @@ This document records the architectural and technical decisions made for VANA, d
      - Enhanced `frontend/src/services/apiClient.ts` with `resolveApiBaseUrl()` to normalize trailing slashes and prevent duplicate `/api/v1` path segments, while emitting a console warning if `VITE_BACKEND_URL` is omitted during production builds.
      - Documented canonical environment variables across root, backend, and frontend `.env.example` templates.
 * **Consequences:** Eliminates migration execution failures on Render build commands; prevents default credential leakage in production; ensures zero-trust origin enforcement for credentialed requests; verified with 130/130 passing backend pytest tests (including dedicated bootstrap and CORS suites) and 77/77 frontend tests.
+
+---
+
+### ADR-025: Cryptographic Audit Ledger, SHA-256 Hash Chaining, and Transactional Row-Locked Concurrency
+* **Status:** Accepted (2026-11-04)
+* **Context:** Milestone 8 mandates full cryptographic hash integrity, an immutable verification log, and auditable change history for all state-mutating events across the VANA platform. The existing `audit_logs` table recorded basic event metadata and JSON states, but lacked sequential ordering guarantees, tamper detection, multi-tenant scoping, and cryptographic proofs of chain integrity.
+* **Decision:**
+  1. **Single-Table Evolutionary Architecture (`audit_logs` + `audit_chain_head`):**
+     - Extended the existing `audit_logs` table with `sequence_number` (BIGINT UNIQUE), `project_id` (UUID FK nullable), `previous_hash` (VARCHAR(64)), `current_hash` (VARCHAR(64) UNIQUE), `hash_version` (INT default 1), `canonical_payload` (JSONB), `correlation_id` (VARCHAR(64) nullable), and `is_backfilled` (BOOLEAN default False).
+     - Introduced an atomic chain head singleton table `audit_chain_head` (constrained to `id = 1`) tracking `last_sequence_number`, `last_event_hash`, `total_events`, and `updated_at`.
+  2. **Deterministic SHA-256 Hashing Engine (`backend/app/domains/audit/hashing.py`):**
+     - Implemented canonical JSON serialization with strict recursive key sorting (`sort_keys=True`), zero non-essential whitespace (`separators=(',', ':')`), UTF-8 encoding (`ensure_ascii=False`), normalized UTC ISO 8601 timestamps, and normalized lowercase UUID formatting.
+     - Defined a standard SHA-256 event digest over the deterministic canonical JSON representation of a structured dictionary envelope containing all metadata and payload fields (`action_type`, `actor_id`, `canonical_payload`, `correlation_id`, `entity_id`, `entity_type`, `event_id`, `hash_version`, `previous_hash`, `project_id`, `sequence_number`, `timestamp`):
+       `current_hash = SHA256(canonical_json_dumps(envelope).encode('utf-8')).hexdigest().lower()`.
+     - Bound the genesis block with `GENESIS_HASH = "0" * 64`.
+  3. **Transactional Row-Locked Concurrency (`backend/app/domains/audit/services.py`):**
+     - Rejected standard PostgreSQL sequences because failed/aborted transactions burn sequence numbers and cause irrecoverable gaps that violate cryptographic chain continuity proofs.
+     - Enforced concurrency serialization via `SELECT ... FROM audit_chain_head WHERE id = 1 FOR UPDATE` within the caller's active database transaction.
+     - Bound sequence generation and hash linkage directly to transaction lifecycle: if the outer transaction rolls back, row locks release and zero sequence numbers are burned or skipped.
+     - Preserved the existing `record_audit_log` domain interface with automatic recursive extraction of `project_id` from entities and payloads.
+  4. **Deterministic Historical Backfill (`backend/alembic/versions/0003_audit_immutability_ledger.py`):**
+     - Reversibly migrated existing database schemas.
+     - Sequentially backfilled legacy audit records ordered deterministically by `created_at ASC, id ASC`, synthesizing canonical payloads and computing valid SHA-256 chain links while marking `is_backfilled = True`.
+     - Seeded `audit_chain_head` with the final sequence number and hash checkpoint.
+* **Consequences:** Provides mathematical proof of immutability and complete tamper detection across all audit events; eliminates duplicate audit logging subsystems; guarantees gapless monotonic sequence continuity; preserves 100% backward compatibility with all existing caller domains and services.
+
+---
+
+### ADR-026: Immutable Verification History, Multi-Tenant Audit Query APIs, and Cryptographic Chain Verification
+* **Status:** Accepted (2026-11-04)
+* **Context:** Following the implementation of the core cryptographic ledger schema and SHA-256 hash chaining engine in Phase 8.1, Phase 8.2 requires:
+  1. Complete remediation of all findings from the Phase 8.1 independent review:
+     - Finding 8.1-01 (High): Authoritative database-derived `project_id` propagation across all activity lifecycle operations (creation, evidence upload, amendment, verification, rejection, archival) and monitoring operations (inspection lifecycle, maintenance task lifecycle, survival observation supersession).
+     - Finding 8.1-02 (Medium): Documented hash formula in ADR-025 corrected to reflect the canonical JSON envelope structure.
+     - Finding 8.1-03 (Low): Expansion of `SENSITIVE_KEYS` sanitization to scrub `api_key`, `client_secret`, and `private_key` recursively in nested state payloads.
+     - Finding 8.1-04 (Low): Formal documentation of the Decimal canonical serialization convention (IEEE 754 float conversion in Version 1) and versioning safeguards.
+  2. Complete immutable verification decision history tracking every review decision (approval, rejection with mandatory reason and review notes), amendment review, and archival event.
+  3. Secure, high-performance, read-only multi-tenant audit query APIs with strict role-based access control and project assignment scoping.
+  4. A robust, bounded cryptographic chain verification service detecting sequence gaps, hash mismatches, and payload tampering across the entire ledger or designated sequence intervals.
+* **Decision:**
+  1. **Remediation of Independent Review Findings:**
+     - Updated `backend/app/domains/operations/services.py` to derive `project_id = activity.project_id` directly from authoritative database records and inject it into both `record_audit_log` and `new_state` for `ACTIVITY_CREATED`, `EVIDENCE_UPLOADED`, `ACTIVITY_AMENDED`, `ACTIVITY_VERIFIED`, `ACTIVITY_REJECTED`, and `ACTIVITY_ARCHIVED`.
+     - Updated `backend/app/domains/monitoring/services.py` to propagate authoritative `project_id` for `INSPECTION_SCHEDULED`, `INSPECTION_STARTED`, `INSPECTION_COMPLETED`, `INSPECTION_CANCELLED`, `INSPECTION_ADDENDUM_RECORDED`, `INSPECTION_EVIDENCE_UPLOADED`, `TASK_CREATED`, `TASK_STARTED`, `TASK_COMPLETED`, `TASK_CANCELLED`, `TASK_REOPENED`, `SURVIVAL_OBSERVATION_CREATED`, `SURVIVAL_OBSERVATION_SUPERSEDED`, and `SURVIVAL_OBSERVATION_CORRECTION_CREATED`.
+     - Expanded `SENSITIVE_KEYS` in `backend/app/domains/audit/services.py` to include `"api_key"`, `"client_secret"`, and `"private_key"`.
+     - Documented Decimal canonical serialization convention in `backend/app/domains/audit/hashing.py` docstrings, preserving float-based representation for Version 1 hash compatibility while reserving string/integer representations for future hash versions.
+  2. **Multi-Tenant Read-Only Audit APIs (`backend/app/domains/audit/router.py`):**
+     - Mounted under `/api/v1/audit` with zero state-mutating endpoints (`POST`, `PUT`, `DELETE` strictly excluded):
+       - `GET /api/v1/audit/events`: Filterable audit event stream supporting pagination (`page`, `page_size`), date ranges (`start_date`, `end_date`), `action_type`, `actor_id`, `project_id`, `entity_type`, and `entity_id`.
+       - `GET /api/v1/audit/events/{id}`: Detailed individual audit log entry lookup by UUID.
+       - `GET /api/v1/audit/verification`: Dedicated verification decision history returning approvals, rejections (with `rejection_reason_code` and `review_notes`), amendments, and deactivations.
+       - `GET /api/v1/audit/entities/{entity_type}/{entity_id}`: Chronological entity-level change history.
+  3. **Multi-Tenant Project Isolation & RBAC Boundaries:**
+     - Enforced across all query endpoints via `get_assigned_project_ids(db, current_user.id)`:
+       - `ADMIN`: Global visibility across all organization events, projects, and entities.
+       - `PROJECT_MANAGER`: Strictly scoped to audit events associated with their assigned projects (`project_id.in_(assigned_ids)`). Requests with an unassigned `project_id` filter immediately reject with `HTTP 403 Forbidden`. Entity lookups for unassigned projects raise `HTTP 403 Forbidden` or `HTTP 404 Not Found`.
+       - `FIELD_OFFICER`: Entire audit domain is strictly forbidden (`HTTP 403 Forbidden`).
+  4. **Cryptographic Chain Verification Service (`verify_audit_chain`):**
+     - Exposed via `POST /api/v1/audit/verify-chain` (restricted to `ADMIN` and `PROJECT_MANAGER` for verification analysis).
+     - Performs in-memory recomputation of SHA-256 digests from `canonical_payload` and metadata envelopes.
+     - Detects:
+       - `SEQUENCE_GAP`: Sequence numbers skipped or non-monotonic.
+       - `LINK_BROKEN`: Current event's `previous_hash` differs from preceding event's `current_hash`.
+       - `PAYLOAD_TAMPERED`: Recomputed SHA-256 hash does not match stored `current_hash`.
+       - `HEAD_DIVERGED`: Chain head singleton does not match the latest event record.
+     - Includes legal/technical disclaimer indicating chain verification proves database state internal consistency, while physical DBA write tampering requires external non-repudiation or write-once external logging.
+* **Consequences:** Completes all Phase 8.2 requirements; closes all four findings from the independent review; establishes multi-tenant, tamper-evident audit transparency; verified with 161 passing backend tests (including 21 dedicated audit domain tests) and 88 passing frontend tests.
+
+---
+
+### ADR-027: Milestone 8 Frontend Audit Ledger, Dynamic State Diffing, and End-to-End Cryptographic Acceptance
+* **Status:** Accepted (2026-11-04)
+* **Context:** Following the completion of the backend cryptographic ledger schema, SHA-256 chaining engine (Phase 8.1), and multi-tenant audit query APIs (Phase 8.2), Phase 8.3 requires:
+  1. Complete frontend workspace implementation for the Audit History & Immutability Ledger mounted at `/audit`.
+  2. Replacing the temporary disabled placeholder UI with five fully interactive production tabs:
+     - **Audit Overview:** Key performance metrics, activity breakdown charts, recent chronological ledger stream, and quick navigation shortcuts.
+     - **Audit Timeline:** Paginated tabular stream with action filter, project filter, date filtering, search bar, and slide-out inspector trigger.
+     - **Verification History:** Dedicated verification decision log tracking approvals, rejections (with `rejection_reason_code` and review notes), amendments, and entity deactivations.
+     - **Integrity Verification Console:** On-demand cryptographic SHA-256 chain recomputation, real-time diagnostic table, failure localization, sequence range validation, and operational/legal disclaimer.
+     - **Entity Change History:** Multi-entity selector, quick project selector, and key-by-key before-and-after dynamic state diffing with badge classification (`MODIFIED`, `ADDED`, `REMOVED`).
+  3. Interactive slide-out `EventDetailDrawer` rendering cryptographic SHA-256 digests (`current_hash`, `previous_hash`), sequence numbers, timestamps, actor attribution, state transitions, and raw canonical JSON payload with copy-to-clipboard functionality.
+  4. Frontend integration using Axios (`auditService.ts`), TanStack Query (`useAudit.ts`), and strict RBAC guards (`ADMIN` organization-wide, `PROJECT_MANAGER` scoped to assigned projects, `FIELD_OFFICER` blocked with explanatory notice).
+  5. Comprehensive 14-step end-to-end integration and browser acceptance verification covering the entire lifecycle: project setup, targets, assignments, activity submissions, evidence uploads, amendments, rejections, approvals, field inspections, maintenance tasks, survival observations, and chain verification.
+* **Decision:**
+  1. **Frontend Architecture & Design Tokens:**
+     - Created `frontend/src/types/audit.ts` with comprehensive TypeScript interfaces for audit logs, verification responses, chain integrity checks, and entity history filters.
+     - Created `frontend/src/services/auditService.ts` wrapping all 5 audit endpoints.
+     - Created `frontend/src/hooks/useAudit.ts` with automated query caching, refetching, and error handling.
+     - Created modular views under `frontend/src/views/audit/components/` adhering strictly to VANA design tokens (Forest Green `#183D32`, Warm Ivory `#F5F3EA`, Sage `#A8B99B`, Earth Gold `#D6A76A`, Charcoal `#29332F`) with Manrope headings and Inter body typography.
+     - Mounted `AuditWorkspaceView` at `/audit` in `frontend/src/routes/index.tsx` guarded by `allowedRoles={["ADMIN", "PROJECT_MANAGER"]}`.
+     - Updated sidebar navigation in `frontend/src/components/layout/Sidebar.tsx` enabling `Audit History` for `ADMIN` and `PROJECT_MANAGER`.
+  2. **Dynamic State Diffing Engine:**
+     - Built an intelligent state delta comparison component in `EntityHistoryTab.tsx` and `EventDetailDrawer.tsx` that normalizes JSON objects, identifies modified, added, and removed keys, and formats primitive and complex changes cleanly without hardcoded schema assumptions.
+     - Gracefully handles initial entity creations where `previous_state` is null by rendering structured creation summaries.
+  3. **Backend Chain Verification Hardening:**
+     - Enriched `backend/app/domains/audit/schemas.py` and `services.py` with `AuditVerifyChainRequest`, sequence-bounded verification (`from_sequence`, `to_sequence`), structured failure categorizations (`CANONICAL_PAYLOAD_CORRUPTED`, `STATE_DIVERGENCE`, `MISSING_EVENTS`, `PREV_HASH_MISMATCH`, `CHAIN_HEAD_MISMATCH`), and sequence diagnostic summaries.
+     - Updated `verify_chain` endpoint in `router.py` to accept either JSON body or query parameters for maximum interoperability.
+  4. **End-to-End Acceptance & Browser Verification:**
+     - Added comprehensive 14-step integration test `backend/tests/domains/audit/test_audit_e2e_acceptance.py` validating full-lifecycle chain continuity across 14 events.
+     - Added frontend automated test suite `frontend/tests/audit.test.mjs` verifying API client methods, TypeScript contracts, and UI tab rendering.
+     - Executed headless browser automation (`scripts/capture_audit_workspaces.mjs`) capturing five genuine screenshots in `docs/screenshots/` (`audit_overview.png`, `audit_timeline.png`, `audit_verification.png`, `audit_integrity.png`, `audit_entity_history.png`).
+* **Consequences:** Completes all Phase 8.3 requirements and brings Milestone 8 to `COMPLETED & ACCEPTED` status; verifies 164 passing backend tests (including 22 dedicated audit domain tests) and 99 passing frontend tests (100% pass rate); provides full cryptographic audit visibility and immutability assurance across the VANA platform.
+
+---
+
+### ADR-028: Pre-Deployment Bundle Optimization, Production Documentation, and Assignment Deliverables
+* **Status:** Accepted (2026-11-04)
+* **Context:** In preparation for final repository publication, production deployment, and assignment submission to Akshaya Vana Climate Ventures, the platform requires:
+  1. Optimization of the frontend client bundle to resolve the single-chunk 1,470 kB bundle warning through route-level code splitting and vendor chunk isolation.
+  2. Complete, authoritative cloud infrastructure documentation for Neon PostgreSQL, Render Web Service, and Vercel Edge CDN.
+  3. Comprehensive technical assignment deliverables including a 5-minute demonstration video walkthrough script, full AI assistance disclosure, and technical submission checklist.
+  4. Complete overhaul of the root `README.md` to accurately reflect the 11 implemented domains, 164 backend tests, and 99 frontend tests.
+* **Decision:**
+  1. **Frontend Code Splitting & Vendor Chunking:**
+     - Configured `build.rollupOptions.output.manualChunks` in `frontend/vite.config.ts` isolating `vendor-react` (React, React-DOM, React Router), `vendor-query` (TanStack Query, Axios), `vendor-map` (Leaflet, React Leaflet), and `vendor-charts` (Recharts).
+     - Refactored `frontend/src/routes/index.tsx` using `React.lazy` and `React.Suspense` with an accessible `RouteLoadingFallback` spinner.
+     - Reduced initial entry point bundle from 1,470 kB to 371 kB (gzip: 112 kB), with all route chunks under 100 kB and zero Vite build warnings.
+  2. **Production Deployment Documentation:**
+     - Updated `docs/PRODUCTION_DEPLOYMENT_GUIDE.md` with Neon connection string normalization, Render blueprint specification with persistent disk, and Vercel edge SPA routing.
+     - Created `docs/PRODUCTION_ENVIRONMENT_VARIABLES.md` exhaustively categorizing required, optional, and bootstrap environment variables.
+     - Created `docs/PRODUCTION_ACCEPTANCE_CHECKLIST.md` providing end-to-end smoke verification criteria across all 11 domains.
+     - Created `docs/BACKUP_AND_RESTORE.md` detailing Neon point-in-time branch recovery, `pg_dump` snapshots, and persistent disk evidence recovery.
+  3. **Assignment Submission Deliverables:**
+     - Authored `docs/DEMO_VIDEO_SCRIPT.md` providing a timed 4m45s narration and navigation runbook for the demonstration video.
+     - Authored `docs/AI_ASSISTANCE_DISCLOSURE.md` detailing the exact scope of AI pair-programming tools and affirming human engineering ownership.
+     - Authored `docs/AKSHAYA_VANA_SUBMISSION_CHECKLIST.md` mapping all 7 submission requirements.
+  4. **Root README Overhaul:**
+     - Completely restructured `README.md` with architecture diagrams, domain breakdown, database ERD, RBAC matrix, local quickstart, testing commands, and troubleshooting.
+* **Consequences:** Eliminates frontend bundle bottlenecks; provides production deployment blueprints; completes every non-deployment deliverable required for the Akshaya Vana technical assignment.

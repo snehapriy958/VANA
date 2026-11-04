@@ -1,7 +1,7 @@
 # VANA — Implementation Status
 
-**Current Stage:** Phase 6.6 Full Platform End-to-End Acceptance Completed and Accepted | Milestones 1A–5 and 6.1–6.6 Fully Verified\
-**Overall Status:** All Implemented Domains (Phases 1A–5 and 6.1–6.6) 100% Complete, Hardened, End-to-End Audited & Accepted (All 119 Backend + 77 Frontend Tests Passed)\
+**Current Stage:** Final Pre-Deployment Completion & Assignment Deliverables Completed | All 11 Domains Fully Verified (Milestones 1A–5, 6.1–6.6, 8.1–8.3, Production Readiness)\
+**Overall Status:** All Implemented Domains 100% Complete, Hardened, End-to-End Audited & Production Ready (164 Backend + 99 Frontend Tests Passed, 100% Pass Rate)\
 **Last Updated:** 2026-11-04\
 
 ---
@@ -24,9 +24,11 @@
 | **Phase 6.4** | Frontend API Integration & TanStack Query | **COMPLETED** | 2026-11-04 | 2026-11-04 | 100% (61/61 Frontend, Typecheck/Build Clean) | Acceptance Audit PASS |
 | **Phase 6.5** | Field Monitoring UI Workspaces & Modals | **COMPLETED & ACCEPTED** | 2026-11-04 | 2026-11-04 | 100% (77/77 Frontend, Typecheck/Build Clean) | Acceptance Audit PASS & Approved |
 | **Phase 6.6** | Full Platform End-to-End Acceptance | **COMPLETED & ACCEPTED** | 2026-11-04 | 2026-11-04 | 100% (119/119 Backend, 77/77 Frontend) | Acceptance Audit PASS & Approved |
-| **Production Readiness** | Pre-Deployment Audit & Security Hardening | **READY** | 2026-11-04 | 2026-11-04 | 100% (130/130 Backend, 77/77 Frontend) | All 3 Blockers Resolved & Verified |
+| **Production Readiness** | Pre-Deployment Audit & Security Hardening | **COMPLETED** | 2026-11-04 | 2026-11-04 | 100% (164/164 Backend, 99/99 Frontend) | All Pre-Deployment Deliverables Ready |
+| **Phase 8.1** | Cryptographic Hashing Engine & Ledger Migration | **COMPLETED** | 2026-11-04 | 2026-11-04 | 100% (150/150 Backend, 88/88 Frontend) | Independent Review Accepted |
+| **Phase 8.2** | Immutable Verification History & Audit APIs | **COMPLETED** | 2026-11-04 | 2026-11-04 | 100% (161/161 Backend, 88/88 Frontend) | Phase 8.1 Findings Remediated |
+| **Phase 8.3** | Frontend Audit Ledger & Full-Lifecycle Acceptance | **COMPLETED & ACCEPTED** | 2026-11-04 | 2026-11-04 | 100% (164/164 Backend, 99/99 Frontend) | Acceptance Audit PASS & Approved |
 | **M7** | Executive Analytics & Reporting | PENDING | TBD | — | 0% | — |
-| **M8** | Audit History & Final Security Review | PENDING | TBD | — | 0% | — |
 
 ---
 
@@ -402,11 +404,89 @@
 
 ---
 
-## 15. Active Invariants & Scoping Boundaries
+## 15. Milestone 8: Audit History & Immutability Ledger (Phases 8.1, 8.2 & 8.3 Deliverables Verification)
+
+* [x] **Cryptographic Hash Chaining Schema (Phase 8.1):**
+  * Extended `audit_logs` with `sequence_number`, `project_id`, `previous_hash`, `current_hash`, `hash_version`, `canonical_payload`, `correlation_id`, and `is_backfilled`.
+  * Created `audit_chain_head` singleton table (enforcing `id = 1`) maintaining atomic chain sequence and hash checkpoints.
+  * Generated and applied migration `0003_audit_immutability_ledger.py` with deterministic historical backfill (`created_at ASC, id ASC`).
+  * Two-way migration cycle verified on `vana_test` (`downgrade -1` $\to$ `upgrade head`).
+* [x] **Deterministic SHA-256 Hashing Engine (Phase 8.1):**
+  * Canonical JSON serialization with recursive key sorting, UTF-8 encoding, zero non-essential whitespace, UTC ISO 8601 timestamps, and lowercase UUIDs.
+  * SHA-256 envelope digest: `current_hash = SHA256(canonical_json_dumps(envelope))`.
+  * Bound genesis hash: `GENESIS_HASH = "0" * 64`.
+  * Transactional row-locked concurrency via `SELECT ... FROM audit_chain_head WHERE id = 1 FOR UPDATE` guaranteeing zero burned sequence numbers on transaction rollback.
+* [x] **Phase 8.1 Independent Review Remediation (Phase 8.2):**
+  * **Finding 8.1-01 (High):** Propagated authoritative `project_id` across all operational events (`ACTIVITY_CREATED`, `EVIDENCE_UPLOADED`, `ACTIVITY_AMENDED`, `ACTIVITY_VERIFIED`, `ACTIVITY_REJECTED`, `ACTIVITY_ARCHIVED`) and monitoring events (`INSPECTION_SCHEDULED`, `INSPECTION_STARTED`, `INSPECTION_COMPLETED`, `INSPECTION_CANCELLED`, `INSPECTION_ADDENDUM_RECORDED`, `INSPECTION_EVIDENCE_UPLOADED`, `TASK_CREATED`, `TASK_STARTED`, `TASK_COMPLETED`, `TASK_CANCELLED`, `TASK_REOPENED`, `SURVIVAL_OBSERVATION_CREATED`, `SURVIVAL_OBSERVATION_SUPERSEDED`, `SURVIVAL_OBSERVATION_CORRECTION_CREATED`).
+  * **Finding 8.1-02 (Medium):** Corrected ADR-025 hash formula to reflect the canonical JSON envelope structure.
+  * **Finding 8.1-03 (Low):** Expanded `SENSITIVE_KEYS` sanitization to scrub `api_key`, `client_secret`, and `private_key` (including nested objects).
+  * **Finding 8.1-04 (Low):** Formally documented Decimal serialization convention (IEEE 754 float in Version 1) and versioning safeguards.
+* [x] **Immutable Verification History (Phase 8.2):**
+  * Captured complete verification review lifecycle: submission, approval, rejection with mandatory reason and review notes, amendment review, and archival deactivation.
+* [x] **Read-Only Audit Query APIs (Phase 8.2):**
+  * Implemented REST router under `/api/v1/audit` with zero mutation endpoints:
+    * `GET /api/v1/audit/events`: Paginated, filterable audit log stream.
+    * `GET /api/v1/audit/events/{id}`: Single event lookup.
+    * `GET /api/v1/audit/verification`: Dedicated verification decision log.
+    * `GET /api/v1/audit/entities/{entity_type}/{entity_id}`: Entity-level audit trail.
+  * Multi-tenant RBAC enforced: `ADMIN` (global access), `PROJECT_MANAGER` (strictly scoped to assigned projects), `FIELD_OFFICER` (403 Forbidden).
+* [x] **Cryptographic Chain Verification Hardening (Phase 8.2 & Phase 8.3):**
+  * Enhanced `POST /api/v1/audit/verify-chain` supporting bounded interval queries (`from_sequence`, `to_sequence`) and both JSON body and query string input modes.
+  * Full 10-point cryptographic check suite: sequence continuity, hash linkage, SHA-256 digest recomputation, canonical JSON normalization, state equivalence, and chain head consistency.
+  * Diagnostic failure categorization (`CANONICAL_PAYLOAD_CORRUPTED`, `STATE_DIVERGENCE`, `MISSING_EVENTS`, `PREV_HASH_MISMATCH`, `CHAIN_HEAD_MISMATCH`).
+* [x] **Frontend Audit History & Immutability Ledger Workspace (Phase 8.3):**
+  * Mounted interactive workspace at `/audit` in `frontend/src/routes/index.tsx` guarded by `ADMIN` and `PROJECT_MANAGER` role permissions.
+  * Replaced disabled placeholder with 5 modular, accessible tabs adhering strictly to VANA brand tokens (`#183D32`, `#F5F3EA`, `#A8B99B`, `#D6A76A`, `#29332F`):
+    * **Audit Overview Tab:** Real-time ledger statistics, event breakdown metrics, chronological stream, and quick navigation shortcuts.
+    * **Audit Timeline Tab:** Comprehensive tabular stream with multi-attribute filtering (action type, project, date range, search query) and detail triggers.
+    * **Verification History Tab:** Dedicated review decision triage log tracking approvals, rejections (with codes and review notes), amendments, and archival.
+    * **Integrity Verification Console:** On-demand cryptographic validation runner with diagnostic status badges, failure localization, and operational/legal disclaimer.
+    * **Entity Change History Tab:** Multi-entity selector, quick project selector, and dynamic key-by-key before-and-after diff engine with badge classification (`MODIFIED`, `ADDED`, `REMOVED`).
+  * Implemented `EventDetailDrawer` slide-out drawer rendering sequence metadata, SHA-256 digests, actor attribution, state transitions, and raw canonical JSON payload with copy-to-clipboard.
+  * Zero mock data: live data backed by TanStack Query (`useAudit.ts`) and Axios (`auditService.ts`).
+* [x] **Comprehensive Testing & End-to-End Acceptance (Phase 8.3):**
+  * 24 dedicated audit domain backend tests passing (11 ledger + 12 API + 1 comprehensive 14-step e2e acceptance test).
+  * 11 dedicated frontend tests passing in `frontend/tests/audit.test.mjs`.
+  * Full backend regression suite: **164/164 tests passed (100%) in 63.05s** against `vana_test`.
+  * Full frontend test suite: **99/99 tests passed (100%) across 8 test suites**.
+  * Frontend TypeScript typecheck: clean (`tsc --noEmit`, exit 0).
+  * Frontend production build: clean (`tsc -b && vite build` in 11.89s, exit 0).
+  * Whitespace checks: `git diff --check` clean (0 warnings).
+  * Captured 5 genuine UI screenshots in `docs/screenshots/` via headless browser automation.
+
+---
+
+## 16. Active Invariants & Scoping Boundaries
 
 * **Single Source of Truth:** PostgreSQL database schema and constraints remain authoritative (`uq_activity_single_active_ledger`, `chk_active_ledger_verified`, `uq_active_survival_observation`, `chk_evidence_target`).
 * **Anti-Self-Verification Absolute:** Rule 5 strictly enforced across backend verification services, API routers, and UI components.
 * **Environmental Ledger Integrity:** Official achievements strictly reflect active verified ledger revisions only (`is_active_ledger_entry = True`).
 * **Monitoring Isolation Invariant:** Monitoring observations, sample plots, and survival rates remain strictly server-derived and never contaminate official verified ledger achievements.
 * **Cross-Project Isolation:** Composite foreign keys and service validation guarantee zero cross-project linkage across activities, inspections, tasks, and observations.
-* **Scope Discipline Enforced:** Phase 6.6 Full Platform Acceptance is fully completed, verified, and accepted. Milestone 7 / Phase 6.7 has NOT been started and awaits explicit gate approval.
+* **Scope Discipline Enforced:** Phase 6.6 Full Platform Acceptance and Milestone 8 are fully completed, verified, and accepted. Milestone 7 / Phase 6.7 has NOT been started and awaits explicit gate approval.
+
+---
+
+## 17. Final Pre-Deployment Hardening & Assignment Deliverables Verification
+
+* [x] **Frontend Bundle Chunk Optimization:**
+  * Configured `manualChunks` in `frontend/vite.config.ts` isolating `vendor-react`, `vendor-query`, `vendor-map`, and `vendor-charts`.
+  * Implemented route-level lazy loading (`React.lazy` + `Suspense`) in `frontend/src/routes/index.tsx`.
+  * Reduced main production bundle entry point from 1,470 kB to 371 kB (gzip: 112 kB). All chunks are strictly below 500 kB.
+* [x] **Authoritative Cloud Deployment Documentation:**
+  * Updated [docs/PRODUCTION_DEPLOYMENT_GUIDE.md](docs/PRODUCTION_DEPLOYMENT_GUIDE.md) detailing Neon PostgreSQL (pooled vs direct), Render Blueprint with persistent disk `/var/data`, and Vercel edge SPA routing.
+  * Created [docs/PRODUCTION_ENVIRONMENT_VARIABLES.md](docs/PRODUCTION_ENVIRONMENT_VARIABLES.md) defining every required, optional, and bootstrap environment variable.
+  * Created [docs/PRODUCTION_ACCEPTANCE_CHECKLIST.md](docs/PRODUCTION_ACCEPTANCE_CHECKLIST.md) providing complete smoke verification gates across all 11 domains.
+  * Created [docs/BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md) detailing point-in-time recovery, `pg_dump` logical backups, and evidence archive runbooks.
+* [x] **Technical Assignment Submission Deliverables:**
+  * Created [docs/DEMO_VIDEO_SCRIPT.md](docs/DEMO_VIDEO_SCRIPT.md) providing a timed 4m45s narration script and click-by-click navigation runbook.
+  * Created [docs/AI_ASSISTANCE_DISCLOSURE.md](docs/AI_ASSISTANCE_DISCLOSURE.md) documenting AI pair-programming tools and human engineering ownership.
+  * Created [docs/AKSHAYA_VANA_SUBMISSION_CHECKLIST.md](docs/AKSHAYA_VANA_SUBMISSION_CHECKLIST.md) covering all 7 assignment deliverables with email template.
+* [x] **Root README Overhaul:**
+  * Completely restructured [README.md](README.md) with architectural diagrams, technology stack, database ERD, RBAC matrix, local quickstart, testing commands, and troubleshooting.
+* [x] **Full Regression & Build Verification:**
+  * Backend regression suite: **164/164 tests passed (100%)**.
+  * Frontend test suite: **99/99 tests passed (100%)**.
+  * TypeScript typecheck: clean (`tsc --noEmit`, exit 0).
+  * Production build: clean (`tsc -b && vite build` in 11.89s, exit 0).
+  * Whitespace check: clean (`git diff --check`, 0 warnings).
