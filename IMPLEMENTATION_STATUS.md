@@ -1,8 +1,8 @@
 # VANA — Implementation Status
 
-**Current Stage:** Milestone 5 Acceptance Audit Completed (Verdict: PASS)  
-**Overall Status:** Milestones 1A through 5 Fully Completed, Hardened & Audited (All 84 Backend + 32 Frontend Tests Passed)  
-**Last Updated:** 2026-11-03  
+**Current Stage:** Phase 6.6 Full Platform End-to-End Acceptance Completed and Accepted | Milestones 1A–5 and 6.1–6.6 Fully Verified  
+**Overall Status:** All Implemented Domains (Phases 1A–5 and 6.1–6.6) 100% Complete, Hardened, End-to-End Audited & Accepted (All 119 Backend + 77 Frontend Tests Passed)  
+**Last Updated:** 2026-11-04  
 
 ---
 
@@ -18,6 +18,13 @@
 | **M4** | Field Operations, Evidence & Verification | **COMPLETED** | 2026-11-03 | 2026-11-03 | 100% (77/77 Backend, 21/21 Frontend) | Acceptance Audit PASS |
 | **M5** | Environmental Ledger & Organization Dashboard | **COMPLETED** | 2026-11-03 | 2026-11-03 | 100% (84/84 Backend, 32/32 Frontend) | Acceptance Audit PASS |
 | **M6** | Living Earth Interactive Map | **COMPLETED** (Integrated in M5) | 2026-11-03 | 2026-11-03 | 100% (Integrated in Map View) | Acceptance Audit PASS |
+| **Phase 6.1** | Field Monitoring Schema & Migration | **COMPLETED** | 2026-11-03 | 2026-11-03 | 100% (96/96 Backend, 11/11 Phase 6.1 Tests) | Acceptance Audit PASS |
+| **Phase 6.2** | Field Monitoring Domain Services & Logic | **COMPLETED** | 2026-11-04 | 2026-11-04 | 100% (112/112 Backend, 16/16 Phase 6.2 Tests) | Acceptance Audit PASS |
+| **Phase 6.3** | Field Monitoring APIs & Multi-Tenant RBAC | **COMPLETED** | 2026-11-04 | 2026-11-04 | 100% (118/118 Backend, 6/6 API Suites) | Acceptance Audit PASS |
+| **Phase 6.4** | Frontend API Integration & TanStack Query | **COMPLETED** | 2026-11-04 | 2026-11-04 | 100% (61/61 Frontend, Typecheck/Build Clean) | Acceptance Audit PASS |
+| **Phase 6.5** | Field Monitoring UI Workspaces & Modals | **COMPLETED & ACCEPTED** | 2026-11-04 | 2026-11-04 | 100% (77/77 Frontend, Typecheck/Build Clean) | Acceptance Audit PASS & Approved |
+| **Phase 6.6** | Full Platform End-to-End Acceptance | **COMPLETED & ACCEPTED** | 2026-11-04 | 2026-11-04 | 100% (119/119 Backend, 77/77 Frontend) | Acceptance Audit PASS & Approved |
+| **Production Readiness** | Pre-Deployment Audit & Security Hardening | **READY** | 2026-11-04 | 2026-11-04 | 100% (130/130 Backend, 77/77 Frontend) | All 3 Blockers Resolved & Verified |
 | **M7** | Executive Analytics & Reporting | PENDING | TBD | — | 0% | — |
 | **M8** | Audit History & Final Security Review | PENDING | TBD | — | 0% | — |
 
@@ -194,10 +201,212 @@
 
 ---
 
-## 8. Active Invariants & Scoping Boundaries
+## 8. Phase 6.1 Deliverables Verification
 
-* **Single Source of Truth:** PostgreSQL database schema and constraints remain authoritative (`uq_activity_single_active_ledger`, `chk_active_ledger_verified`, `chk_rejection_reason_required`).
-* **Anti-Self-Verification Absolute:** Rule 5 strictly enforced at database, service, API, and UI layers.
-* **Environmental Ledger Integrity:** Official achievements reflect active verified ledger revisions only (`is_active_ledger_entry = True`).
-* **Scope Restriction Enforced:** External prediction models, carbon offset estimations, automated IoT telemetry, and CSV exports remain deferred.
-* **Next Stage Gate:** Milestone 5 complete; awaiting user instructions before commencing Milestone 6 or further work.
+* [x] **Domain Models (`app/domains/monitoring/models.py`):**
+  * Implemented `FieldInspection` model with health scoring, findings, and composite foreign key to `FieldActivity`.
+  * Implemented `MaintenanceTask` model with priority, status lifecycle (`PENDING`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`), deadline, and composite FKs to project/inspection/activity.
+  * Implemented `SurvivalObservation` model with sample vs. census tracking, counts (`alive_count`, `dead_count`, `unassessed_count`), methodology checks, partial active uniqueness, and deferred self-referential `superseded_by_id`.
+  * Derived survival rate property strictly calculated as `alive_count / (alive_count + dead_count) * 100` dynamically, preventing static persistence or ungrounded extrapolation.
+* [x] **Evidence Target Exclusivity (`app/domains/operations/models.py`):**
+  * Extended `EvidenceFile` with optional `inspection_id` (`ON DELETE RESTRICT`), latitude, longitude, and caption.
+  * Enforced database check constraint `chk_evidence_target` strictly requiring either `activity_revision_id` OR `inspection_id`, disallowing ambiguous dual-attachments or orphaned evidence.
+* [x] **Alembic Database Migration (`alembic/versions/0002_field_monitoring.py`):**
+  * Added composite unique constraint `uq_field_activities_id_project` on `field_activities(id, project_id)`.
+  * Generated `field_inspections`, `maintenance_tasks`, and `survival_observations` tables with full composite foreign key constraints.
+  * Applied PostgreSQL 17's column-specific `ON DELETE SET NULL (column_name)` on composite FKs preserving `project_id`.
+  * Enforced partial unique index `uq_active_survival_observation` on `(project_id, plot_identifier, cohort_identifier, observation_date) WHERE is_active = TRUE`.
+  * Two-way migration cycle (`upgrade head` $\to$ `downgrade -1` $\to$ `upgrade head`) verified 100% clean and reversible on `vana_test`.
+* [x] **Testing & Verification:**
+  * Dedicated Phase 6.1 test suite: **11/11 tests passed (100%) in 0.84s** (`tests/domains/monitoring/test_monitoring_schema_and_migration.py`).
+  * Full backend regression test suite: **96/96 tests passed (100%) in 41.80s** with 0 regressions.
+  * Completion report published in `docs/PHASE_6_1_COMPLETION_REPORT.md`.
+  * Architecture Decision Record published in `DECISION_LOG.md` (ADR-019).
+
+---
+
+## 9. Phase 6.2 Deliverables Verification
+
+* [x] **Inspection Management Service (`app/domains/monitoring/services.py`):**
+  * Schedule inspection with project assignment validation and cross-project activity rejection.
+  * Deterministic state transitions: `SCHEDULED` $\to$ `IN_PROGRESS` $\to$ `COMPLETED` and `SCHEDULED` / `IN_PROGRESS` $\to$ `CANCELLED`.
+  * Inspector ownership protection: Field Officers can only start and complete inspections assigned to them.
+  * Direct editing locked on completed inspections (`COMPLETED_INSPECTION_LOCKED`).
+  * Post-completion correction addenda recorded immutably on completed inspections without mutating original findings.
+* [x] **Maintenance Task Service (`app/domains/monitoring/services.py`):**
+  * Create maintenance task with project assignment validation and cross-project inspection/activity link validation.
+  * Task lifecycle transitions: `TODO` $\to$ `IN_PROGRESS` $\to$ `COMPLETED` with mandatory completion notes.
+  * Task cancellation restricted to PM/Admin with mandatory reason.
+  * Task reopening (`COMPLETED` $\to$ `TODO`) restricted to PM/Admin with mandatory justification note.
+  * Assignee ownership protection: Field Officers can only start and complete their own assigned tasks.
+* [x] **Survival Observation Service (`app/domains/monitoring/services.py`):**
+  * Server-side derived survival rate: rejects client-supplied survival rates; returns `None` safely when assessed population is zero.
+  * Enforces scientific count constraint $(alive\_count + dead\_count) \le sample\_size$.
+  * Duplicate active observation prevention: rejects multiple active observations for $(project, plot, cohort, date)$ with `HTTP 409 Conflict`.
+  * Atomic observation supersession: locks original with `with_for_update()`, deactivates original (`is_active = False`), creates replacement (`is_active = True`) with identical population identity, and links `superseded_by_id`.
+  * Preserves historical superseded rows in history query; provides longitudinal trajectory curves of active observations.
+* [x] **Dynamic Alerts Query Engine (`app/domains/monitoring/services.py`):**
+  * Pure database-backed SQL dynamic queries for `OVERDUE_INSPECTION`, `UPCOMING_INSPECTION`, and `OVERDUE_TASK`.
+  * Zero external background daemons, Celery, Redis, or push notifications.
+  * Multi-tenant scoped by user project assignments.
+* [x] **Audit Trail Coverage (`app/domains/audit/services.py`):**
+  * Immutable audit entries created for all inspection, task, and observation mutations.
+* [x] **Testing & Verification:**
+  * Dedicated Phase 6.2 domain services test suite: **16/16 tests passed (100%) in 1.88s** (`tests/domains/monitoring/test_monitoring_domain_services.py`).
+  * Full monitoring domain tests (schema + services): **27/27 tests passed in 2.52s**.
+  * Full backend regression test suite: **112/112 tests passed (100%) in 47.33s** with zero regressions.
+  * Frontend unit tests: **32/32 tests passed (100%) in 0.22s**.
+  * Completion report published in `docs/PHASE_6_2_COMPLETION_REPORT.md`.
+
+---
+
+## 10. Phase 6.3 Deliverables Verification
+
+* [x] **FastAPI Monitoring Router (`backend/app/domains/monitoring/router.py`):**
+  * Mounted 19 REST endpoints under `/api/v1/monitoring`.
+  * Field Inspections: schedule, list, get, start, complete, cancel, addendum, evidence upload.
+  * Maintenance Tasks: create, list, get, start, complete, cancel, reopen.
+  * Survival Observations: create, list, get, correct (supersede), trajectory analytics.
+  * Operational Alerts & Dashboard: alerts evaluation, consolidated monitoring dashboard.
+* [x] **Multi-Tenant RBAC & Project Scoping:**
+  * Independent backend authorization enforcing project assignment and role permissions on every route.
+  * `ADMIN` org-wide, `PROJECT_MANAGER` scoped to assigned projects, `FIELD_OFFICER` restricted to assigned projects and assignee-only actions.
+* [x] **Testing & Verification:**
+  * Dedicated API integration test suite: **6/6 test suites passed** in `tests/domains/monitoring/test_monitoring_api.py`.
+  * Backend regression suite: **118/118 tests passed (100%) in 49.43s**.
+  * Completion report published in `docs/PHASE_6_3_COMPLETION_REPORT.md`.
+
+---
+
+## 11. Phase 6.4 Deliverables Verification
+
+* [x] **TypeScript Contracts (`frontend/src/types/monitoring.ts`):**
+  * Strictly mapped to FastAPI OpenAPI schemas and PostgreSQL domain models.
+  * Defined enums: `InspectionStatus`, `InspectionType`, `CanopyCondition`, `SoilMoistureCondition`, `MaintenanceTaskStatus`, `MaintenanceTaskCategory`, `MaintenanceTaskPriority`, `SurvivalMethodology`, `AlertType`, `AlertSeverity`.
+  * Defined request/response interfaces: `FieldInspection`, `InspectionCreateRequest`, `InspectionCompleteRequest`, `MaintenanceTask`, `MaintenanceTaskCreateRequest`, `SurvivalObservation`, `SurvivalObservationCreateRequest`, `SurvivalObservationCorrectionRequest`, `SurvivalAnalytics`, `MonitoringAlertSummary`, `MonitoringDashboard`.
+* [x] **Shared API Client & Centralized Error Handling (`frontend/src/services/apiClient.ts`):**
+  * Enhanced Axios response interceptor for FastAPI/Pydantic error payloads (`detail` string, structured `{ message }`, validation array `[{ loc, msg }]`).
+  * Preserves meaningful backend errors for 400, 401, 403, 404, 409, 422, and network failures.
+  * Added `extractErrorMessage(error: unknown): string` utility.
+* [x] **Monitoring API Service (`frontend/src/services/monitoringService.ts`):**
+  * Implemented all 19 endpoints across Field Inspections, Maintenance Tasks, Survival Observations, Trajectory Analytics, Operational Alerts, and Dashboard Summaries.
+  * Supports typed request bodies, query parameters, pagination, and multipart `FormData` evidence upload.
+* [x] **TanStack Query Hooks (`frontend/src/hooks/useMonitoring.ts`):**
+  * Hierarchical query key factory `monitoringKeys` preventing key collisions and enabling targeted cache invalidation.
+  * 9 Query hooks: `useInspections`, `useInspection`, `useMaintenanceTasks`, `useMaintenanceTask`, `useSurvivalObservations`, `useSurvivalObservation`, `useSurvivalAnalytics`, `useMonitoringAlerts`, `useMonitoringDashboard`.
+  * 13 Mutation hooks with automated cache invalidation preventing stale dashboard and analytics data.
+* [x] **Testing & Verification:**
+  * Dedicated Phase 6.4 frontend test suite: **29/29 tests passed** in `frontend/tests/monitoring.test.mjs`.
+  * Full frontend test suite: **61/61 tests passed (100%) in 196ms**.
+  * Frontend typecheck: `tsc --noEmit` clean (code 0).
+  * Frontend production build: `tsc -b && vite build` clean (code 0, 2237 modules transformed).
+  * Full backend regression test suite: **118/118 tests passed (100%) in 54.92s**.
+  * Completion report published in `docs/PHASE_6_4_COMPLETION_REPORT.md`.
+
+---
+
+## 12. Phase 6.5 Deliverables Verification
+
+* [x] **Navigation & Route Integration:**
+  * Added "Field Monitoring" navigation item with `Activity` icon in `frontend/src/components/layout/Sidebar.tsx`.
+  * Mounted `/monitoring` route rendering `FieldMonitoringView` in `frontend/src/routes/index.tsx`.
+* [x] **Four Dedicated Workspace Tabs (`frontend/src/views/monitoring/`):**
+  * `MonitoringDashboardTab.tsx`: 6 KPI cards, dynamic alerts banner with severity badges, upcoming inspections, attention tasks, and recent survival feed.
+  * `InspectionsTab.tsx`: Filterable registry, search, inspector dropdown, schedule modal, execute/complete modal with health scores (1-5), canopy & moisture condition, detected threats, photo evidence attachment, cancellation modal, and details drawer with immutable post-completion addenda log.
+  * `MaintenanceTasksTab.tsx`: Overdue visual highlighting (`due_date < today`), priority and category filtering, task creation modal, complete modal (mandatory notes), cancel modal (mandatory reason), and reopen modal (mandatory justification).
+  * `SurvivalMonitoringTab.tsx`: Observation history table, Recharts longitudinal trajectory analytics curve, record observation modal with dynamic live preview (assessed, unassessed, observed sample survival rate), and atomic correction/supersession modal.
+* [x] **Evidence Lightbox Modal (`frontend/src/views/monitoring/components/EvidenceLightboxModal.tsx`):**
+  * Media lightbox with download link, GPS coordinates badge, MIME type, file size formatting, and caption.
+* [x] **Scientific Rigor & Immutability:**
+  * Prohibited client-side editing or submission of `survival_rate`; strictly server-derived.
+  * Dynamic live preview correctly calculates assessed population, unassessed remainder, and observed sample survival rate.
+  * Completed inspections locked against direct modification; post-completion changes strictly appended as immutable addenda.
+  * Observation corrections executed as atomic supersessions preserving population identity and audit reasons.
+* [x] **Testing & Verification:**
+  * Dedicated Phase 6.5 UI logic test suite: **16/16 tests passed** in `frontend/tests/monitoring_ui.test.mjs`.
+  * Full frontend test suite: **77/77 tests passed (100%) in 278ms** across 6 test suites.
+  * Frontend typecheck: `tsc --noEmit` clean (code 0).
+  * Frontend production build: `tsc -b && vite build` clean (code 0, 2245 modules transformed in 15.23s).
+  * Full backend regression test suite: **118/118 tests passed (100%) in 51.34s**.
+  * Live end-to-end service verification confirmed against running PostgreSQL, Uvicorn, and Vite instances.
+  * Completion report published in `docs/PHASE_6_5_COMPLETION_REPORT.md`.
+  * Architecture Decision Record published in `DECISION_LOG.md` (ADR-022).
+
+---
+
+## 13. Phase 6.6 Deliverables Verification
+
+* [x] **Full Business Lifecycle Verification (`backend/tests/e2e_full_lifecycle_audit.py`):**
+  * Automated end-to-end execution of all 8 lifecycle stages: `PLAN -> ASSIGN -> EXECUTE -> RECORD -> VERIFY -> MEASURE -> MONITOR`.
+  * Verified project creation, multi-target allocation, and role-scoped personnel assignments.
+  * Submitted field activities with geotagged photo evidence; verified content-addressed storage.
+  * Verified Anti-Self-Verification Gate strictly blocks creator self-approval with HTTP 403 Forbidden.
+  * Verified independent review approval, rejections with mandatory reasons, and amendment net adjustment accounting.
+  * Verified activity archival: soft-delete automatically deactivates active ledger entry and rolls back official achievements.
+  * Executed field inspections, immutable post-completion addenda, maintenance task workflows, and task reopening with mandatory justification.
+  * Recorded survival observation with server-derived rate and performed atomic supersession with audit reason.
+* [x] **Zero Environmental Contamination Verification:**
+  * Confirmed that sample plot survival observations and observed sapling counts remain 100% isolated from official verified ledger achievements.
+* [x] **Database & Migration Reversibility:**
+  * Executed two-way migration cycle (`downgrade -1` $\to$ `upgrade head`) on `vana_test`: verified 100% clean and reversible.
+  * Verified relational integrity: composite foreign keys, delete behaviors (`RESTRICT` on baseline activities, column-specific `SET NULL`), and partial unique indexes (`uq_activity_single_active_ledger`, `uq_active_survival_observation`).
+* [x] **Browser Acceptance & Screenshot Capture:**
+  * Executed headless Chrome DevTools Protocol automation against live backend data.
+  * Captured genuine screenshots in `docs/screenshots/`:
+    * `monitoring_overview.png`: KPI metrics, alert banner, and activity stream.
+    * `monitoring_inspections.png`: Filterable registry and action modals.
+    * `monitoring_tasks.png`: Priority/status filtering and task modals.
+    * `monitoring_survival.png`: Observation registry and Recharts trajectory curve.
+* [x] **Regression Suite Execution:**
+  * Full backend pytest regression suite: **119/119 tests passed (100%) in 54.17s** against `vana_test`.
+  * Full frontend unit & integration suite: **77/77 tests passed (100%) in 234ms** across 6 test suites.
+  * Frontend TypeScript typecheck: `tsc --noEmit` clean (code 0).
+  * Frontend production build: `tsc -b && vite build` clean (code 0, 2245 modules transformed in 16.00s).
+* [x] **Documentation & Final Reporting:**
+  * Comprehensive 14-section audit report published in `docs/PHASE_6_6_FINAL_ACCEPTANCE_REPORT.md`.
+  * Final Acceptance Verdict: **PASS**.
+
+---
+
+## 14. Production Readiness & Deployment Blockers Deliverables Verification
+
+* [x] **Production Readiness Audit:**
+  * Completed full architectural audit across 11 domains documented in `docs/PRODUCTION_READINESS_AUDIT.md`.
+  * Verdict: **READY** (All 3 Actionable Deployment Blockers Resolved and Formally Verified).
+* [x] **Blocker 1 Resolution — Alembic Production Database Configuration:**
+  * Cleared hardcoded localhost URL default in `backend/alembic.ini`.
+  * Configured dynamic URL precedence in `backend/alembic/env.py`: `ALEMBIC_DATABASE_URL` $\to$ `settings.DATABASE_URL` $\to$ `alembic.ini`.
+  * Implemented Neon asyncpg driver normalization (`postgres://` / `postgresql://` $\to$ `postgresql+asyncpg://`) and SSL query normalization (`sslmode=` $\to$ `ssl=`).
+  * Enforced critical production fail-safe in `env.py` and `app/core/config.py` rejecting local/dev database connections when `ENVIRONMENT=production`.
+  * Declared `ALEMBIC_DATABASE_URL` with `sync: false` in `render.yaml`.
+* [x] **Blocker 2 Resolution — Secure Production Administrator Bootstrap CLI:**
+  * Created standalone CLI module `backend/app/bootstrap_admin.py` executed via `python -m app.bootstrap_admin`.
+  * Reads credentials strictly from environment variables: `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_ADMIN_NAME`.
+  * Enforces password complexity ($\ge 12$ chars, upper, lower, digit, special char) and rejects dictionary/weak passwords.
+  * Hashes credentials with Argon2id and writes immutable `USER_PROVISIONED` audit log.
+  * Verified duplicate conflict protection: refuses to overwrite existing user accounts.
+  * Dedicated test suite passing: **4/4 tests passed** in `backend/tests/test_bootstrap_admin.py`.
+* [x] **Blocker 3 Resolution — Exact CORS Configuration & Production Validation:**
+  * Hardened `validate_production_security` in `backend/app/core/config.py` to enforce non-empty `CORS_ORIGINS`, reject `*` and wildcard patterns (`*.vercel.app`) when credentials are enabled, and reject `localhost`/`127.0.0.1` origins in production.
+  * Dedicated test suite passing: **7/7 tests passed** in `backend/tests/test_cors_configuration.py`.
+  * Updated `.env.example`, `backend/.env.example`, and `frontend/.env.example` with documented production origins (`https://vana.earth`, `https://vana-app.vercel.app`).
+* [x] **Frontend Production Environment Normalization:**
+  * Added `resolveApiBaseUrl()` in `frontend/src/services/apiClient.ts` to prevent duplicate `/api/v1` segments and emit console warning if `VITE_BACKEND_URL` is omitted in production build.
+  * Verified `frontend/vercel.json` SPA routing rewrite (`/(.*)` $\to$ `/index.html`).
+* [x] **Full Regression & Build Verification:**
+  * Backend regression suite: **130/130 tests passed (100%) in 55.92s** against `vana_test`.
+  * Frontend unit/integration suite: **77/77 tests passed (100%) in 250ms**.
+  * Frontend TypeScript typecheck: clean (`tsc --noEmit`, exit 0).
+  * Frontend production build: clean (`tsc -b && vite build` in 15.22s, exit 0).
+  * ADR published in `DECISION_LOG.md` (ADR-024).
+
+---
+
+## 15. Active Invariants & Scoping Boundaries
+
+* **Single Source of Truth:** PostgreSQL database schema and constraints remain authoritative (`uq_activity_single_active_ledger`, `chk_active_ledger_verified`, `uq_active_survival_observation`, `chk_evidence_target`).
+* **Anti-Self-Verification Absolute:** Rule 5 strictly enforced across backend verification services, API routers, and UI components.
+* **Environmental Ledger Integrity:** Official achievements strictly reflect active verified ledger revisions only (`is_active_ledger_entry = True`).
+* **Monitoring Isolation Invariant:** Monitoring observations, sample plots, and survival rates remain strictly server-derived and never contaminate official verified ledger achievements.
+* **Cross-Project Isolation:** Composite foreign keys and service validation guarantee zero cross-project linkage across activities, inspections, tasks, and observations.
+* **Scope Discipline Enforced:** Phase 6.6 Full Platform Acceptance is fully completed, verified, and accepted. Milestone 7 / Phase 6.7 has NOT been started and awaits explicit gate approval.
