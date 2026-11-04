@@ -683,7 +683,9 @@ def test_production_environment_refuses_insecure_default_secret():
     with pytest.raises(ValueError) as exc:
         Settings(
             ENVIRONMENT="production",
-            JWT_SECRET_KEY="dev-secret-key-must-be-changed-in-production-at-least-32-chars"
+            JWT_SECRET_KEY="dev-secret-key-must-be-changed-in-production-at-least-32-chars",
+            DATABASE_URL="postgresql+asyncpg://prod_user:pass@ep-remote.neon.tech/vana_prod?ssl=require",
+            CORS_ORIGINS=["https://vana.earth"],
         )
     assert "CRITICAL SECURITY ERROR" in str(exc.value)
 
@@ -691,13 +693,17 @@ def test_production_environment_refuses_insecure_default_secret():
     with pytest.raises(ValueError) as exc_short:
         Settings(
             ENVIRONMENT="production",
-            JWT_SECRET_KEY="short-secret"
+            JWT_SECRET_KEY="short-secret",
+            DATABASE_URL="postgresql+asyncpg://prod_user:pass@ep-remote.neon.tech/vana_prod?ssl=require",
+            CORS_ORIGINS=["https://vana.earth"],
         )
     assert "CRITICAL SECURITY ERROR" in str(exc_short.value)
 
     # Strong 32+ char secret in production must succeed
     strong_settings = Settings(
         ENVIRONMENT="production",
-        JWT_SECRET_KEY="a-very-secure-production-jwt-signing-secret-with-high-entropy-12345678"
+        JWT_SECRET_KEY="a-very-secure-production-jwt-signing-secret-with-high-entropy-12345678",
+        DATABASE_URL="postgresql+asyncpg://prod_user:pass@ep-remote.neon.tech/vana_prod?ssl=require",
+        CORS_ORIGINS=["https://vana.earth"],
     )
     assert strong_settings.ENVIRONMENT == "production"

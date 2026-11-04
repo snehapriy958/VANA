@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 from logging.config import fileConfig
+import os
 import sys
 from pathlib import Path
 
@@ -15,7 +16,7 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-from app.core.config import settings
+from app.core.config import settings, validate_production_database_url
 from app.models import Base
 
 # this is the Alembic Config object, which provides
@@ -26,9 +27,28 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Overwrite sqlalchemy.url with environment configuration if not already overridden
-if not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Resolve database URL in strict priority order:
+# 1. ALEMBIC_DATABASE_URL (environment override)
+# 2. settings.DATABASE_URL (application settings, normalized)
+# 3. Fallback from alembic.ini (development only)
+target_url = os.environ.get("ALEMBIC_DATABASE_URL") or settings.DATABASE_URL or config.get_main_option("sqlalchemy.url")
+
+# Normalize URL for asyncpg / Neon
+if target_url:
+    target_url = target_url.strip()
+    if target_url.startswith("postgres://"):
+        target_url = target_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif target_url.startswith("postgresql://") and not target_url.startswith("postgresql+asyncpg://"):
+        target_url = target_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if "sslmode=" in target_url:
+        target_url = target_url.replace("sslmode=", "ssl=")
+
+# Production validation guard: fail immediately if production is configured with invalid/local/dev database
+if settings.ENVIRONMENT.lower() in ("production", "prod"):
+    validate_production_database_url(target_url)
+
+if target_url:
+    config.set_main_option("sqlalchemy.url", target_url)
 
 target_metadata = Base.metadata
 

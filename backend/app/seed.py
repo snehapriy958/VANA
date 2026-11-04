@@ -10,6 +10,7 @@ from decimal import Decimal
 import uuid
 
 from sqlalchemy import select
+import app.models  # noqa: F401 - Register all domain models
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
 from app.domains.auth.models import User, UserRole

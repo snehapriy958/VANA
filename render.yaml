@@ -5,7 +5,8 @@ services:
     region: oregon
     plan: starter
     rootDir: backend
-    buildCommand: "pip install -r requirements.txt && alembic upgrade head"
+    buildCommand: "pip install -r requirements.txt"
+    preDeployCommand: "alembic upgrade head"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: "/health"
     envVars:
@@ -18,6 +19,8 @@ services:
       - key: API_V1_STR
         value: /api/v1
       - key: DATABASE_URL
+        sync: false
+      - key: ALEMBIC_DATABASE_URL
         sync: false
       - key: JWT_SECRET_KEY
         generateValue: true
