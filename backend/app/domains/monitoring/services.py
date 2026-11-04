@@ -216,6 +216,7 @@ class InspectionService:
             entity_type="FieldInspection",
             entity_id=inspection.id,
             actor_id=user.id,
+            project_id=inspection.project_id,
             previous_state=None,
             new_state={
                 "id": str(inspection.id),
@@ -335,8 +336,13 @@ class InspectionService:
             entity_type="FieldInspection",
             entity_id=inspection.id,
             actor_id=user.id,
+            project_id=inspection.project_id,
             previous_state={"status": prev_status},
-            new_state={"status": inspection.status, "notes": notes},
+            new_state={
+                "project_id": str(inspection.project_id),
+                "status": inspection.status,
+                "notes": notes,
+            },
         )
 
         return inspection
@@ -418,8 +424,10 @@ class InspectionService:
             entity_type="FieldInspection",
             entity_id=inspection.id,
             actor_id=user.id,
+            project_id=inspection.project_id,
             previous_state={"status": prev_status},
             new_state={
+                "project_id": str(inspection.project_id),
                 "status": inspection.status,
                 "completed_at": inspection.completed_at.isoformat(),
                 "findings": inspection.findings,
@@ -491,8 +499,10 @@ class InspectionService:
             entity_type="FieldInspection",
             entity_id=inspection.id,
             actor_id=user.id,
+            project_id=inspection.project_id,
             previous_state={"status": prev_status},
             new_state={
+                "project_id": str(inspection.project_id),
                 "status": inspection.status,
                 "cancellation_reason": data.cancellation_reason.strip(),
             },
@@ -562,8 +572,12 @@ class InspectionService:
             entity_type="FieldInspection",
             entity_id=inspection.id,
             actor_id=user.id,
+            project_id=inspection.project_id,
             previous_state=None,
-            new_state={"addendum": addendum_entry},
+            new_state={
+                "project_id": str(inspection.project_id),
+                "addendum": addendum_entry,
+            },
         )
 
         return inspection
@@ -645,6 +659,7 @@ class InspectionService:
             entity_type="EvidenceFile",
             entity_id=evidence.id,
             actor_id=user.id,
+            project_id=inspection.project_id,
             previous_state=None,
             new_state={
                 "id": str(evidence.id),
@@ -757,6 +772,7 @@ class MaintenanceTaskService:
             entity_type="MaintenanceTask",
             entity_id=task.id,
             actor_id=user.id,
+            project_id=task.project_id,
             previous_state=None,
             new_state={
                 "id": str(task.id),
@@ -878,8 +894,13 @@ class MaintenanceTaskService:
             entity_type="MaintenanceTask",
             entity_id=task.id,
             actor_id=user.id,
+            project_id=task.project_id,
             previous_state={"status": prev_status},
-            new_state={"status": task.status, "notes": notes},
+            new_state={
+                "project_id": str(task.project_id),
+                "status": task.status,
+                "notes": notes,
+            },
         )
 
         return task
@@ -943,8 +964,10 @@ class MaintenanceTaskService:
             entity_type="MaintenanceTask",
             entity_id=task.id,
             actor_id=user.id,
+            project_id=task.project_id,
             previous_state={"status": prev_status},
             new_state={
+                "project_id": str(task.project_id),
                 "status": task.status,
                 "completed_at": task.completed_at.isoformat(),
                 "completion_notes": task.completion_notes,
@@ -1003,8 +1026,13 @@ class MaintenanceTaskService:
             entity_type="MaintenanceTask",
             entity_id=task.id,
             actor_id=user.id,
+            project_id=task.project_id,
             previous_state={"status": prev_status},
-            new_state={"status": task.status, "cancellation_reason": reason},
+            new_state={
+                "project_id": str(task.project_id),
+                "status": task.status,
+                "cancellation_reason": reason,
+            },
         )
 
         return task
@@ -1068,8 +1096,13 @@ class MaintenanceTaskService:
             entity_type="MaintenanceTask",
             entity_id=task.id,
             actor_id=user.id,
+            project_id=task.project_id,
             previous_state={"status": prev_status, "completed_at": prev_completed_at},
-            new_state={"status": task.status, "justification": justification_clean},
+            new_state={
+                "project_id": str(task.project_id),
+                "status": task.status,
+                "justification": justification_clean,
+            },
         )
 
         return task
@@ -1179,6 +1212,7 @@ class SurvivalObservationService:
             entity_type="SurvivalObservation",
             entity_id=observation.id,
             actor_id=user.id,
+            project_id=observation.project_id,
             previous_state=None,
             new_state={
                 "id": str(observation.id),
@@ -1366,6 +1400,7 @@ class SurvivalObservationService:
             entity_type="SurvivalObservation",
             entity_id=original.id,
             actor_id=user.id,
+            project_id=original.project_id,
             previous_state={
                 "is_active": True,
                 "alive_count": original.alive_count,
@@ -1373,6 +1408,7 @@ class SurvivalObservationService:
                 "sample_size": original.sample_size,
             },
             new_state={
+                "project_id": str(original.project_id),
                 "is_active": False,
                 "superseded_by_id": str(replacement.id),
                 "correction_notes": correction_notes_clean,
@@ -1385,9 +1421,11 @@ class SurvivalObservationService:
             entity_type="SurvivalObservation",
             entity_id=replacement.id,
             actor_id=user.id,
+            project_id=replacement.project_id,
             previous_state=None,
             new_state={
                 "id": str(replacement.id),
+                "project_id": str(replacement.project_id),
                 "supersedes_id": str(original.id),
                 "alive_count": replacement.alive_count,
                 "dead_count": replacement.dead_count,

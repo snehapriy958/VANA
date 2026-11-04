@@ -9,7 +9,7 @@ from app.domains.operations.models import (
     RejectionReasonCode,
     EvidenceFile,
 )
-from app.domains.audit.models import AuditLog
+from app.domains.audit.models import AuditChainHead, AuditLog
 from app.domains.monitoring.models import (
     FieldInspection,
     InspectionStatus,
@@ -39,6 +39,7 @@ __all__ = [
     "RejectionReasonCode",
     "EvidenceFile",
     "AuditLog",
+    "AuditChainHead",
     "FieldInspection",
     "InspectionStatus",
     "InspectionType",

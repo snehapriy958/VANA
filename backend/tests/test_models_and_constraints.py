@@ -17,6 +17,7 @@ from app.domains.operations.models import (
     EvidenceFile,
 )
 from app.domains.audit.models import AuditLog
+from app.domains.audit.services import record_audit_log
 
 
 @pytest.mark.asyncio
@@ -106,15 +107,14 @@ async def test_insert_and_query_all_tables(db_session: AsyncSession):
     db_session.add(evidence)
 
     # 9. Audit Log
-    audit = AuditLog(
+    audit = await record_audit_log(
+        db=db_session,
         actor_id=admin_user.id,
         action_type="TEST_INITIALIZATION",
         entity_type="PROJECT",
         entity_id=project.id,
         new_state={"status": "ACTIVE"},
     )
-    db_session.add(audit)
-    await db_session.flush()
 
     # Query back
     result = await db_session.execute(select(Project).where(Project.id == project.id))

@@ -233,6 +233,7 @@ class ActivityService:
             entity_type="field_activity",
             entity_id=activity.id,
             actor_id=current_user.id,
+            project_id=activity.project_id,
             new_state={
                 "activity_id": str(activity.id),
                 "project_id": str(activity.project_id),
@@ -253,8 +254,10 @@ class ActivityService:
                 entity_type="field_activity",
                 entity_id=activity.id,
                 actor_id=current_user.id,
+                project_id=activity.project_id,
                 new_state={
                     "activity_id": str(activity.id),
+                    "project_id": str(activity.project_id),
                     "revision_id": str(revision.id),
                     "files": [
                         {
@@ -423,8 +426,10 @@ class ActivityService:
             entity_type="field_activity",
             entity_id=activity.id,
             actor_id=current_user.id,
+            project_id=activity.project_id,
             new_state={
                 "activity_id": str(activity.id),
+                "project_id": str(activity.project_id),
                 "revision_number": next_rev_num,
                 "amended_quantity": float(new_revision.quantity),
                 "previously_verified_quantity": prev_verified_qty,
@@ -508,8 +513,10 @@ class ActivityService:
             entity_type="field_activity",
             entity_id=activity.id,
             actor_id=current_user.id,
+            project_id=activity.project_id,
             new_state={
                 "activity_id": str(activity.id),
+                "project_id": str(activity.project_id),
                 "is_archived": True,
                 "deactivated_revision_id": deactivated_revision_id,
             },
@@ -971,8 +978,10 @@ class VerificationService:
             entity_type="activity_revision",
             entity_id=revision.id,
             actor_id=current_user.id,
+            project_id=activity.project_id,
             new_state={
                 **audit_new_state,
+                "project_id": str(activity.project_id),
                 "project_verified_total_recalculated": float(recalculated_total),
             },
             ip_address=ip_address,
