@@ -1007,7 +1007,10 @@ class EvidenceService:
         stmt = (
             select(EvidenceFile)
             .where(EvidenceFile.id == evidence_id)
-            .options(selectinload(EvidenceFile.activity))
+            .options(
+                selectinload(EvidenceFile.activity),
+                selectinload(EvidenceFile.inspection),
+            )
         )
         evidence = await db.scalar(stmt)
         if not evidence:
@@ -1019,10 +1022,16 @@ class EvidenceService:
                 },
             )
 
-        # Scoping check: verify access to project
-        await ActivityService.verify_project_assignment(
-            db, evidence.activity.project_id, current_user
+        # Scoping check: verify access to project (via activity or inspection)
+        project_id = (
+            evidence.activity.project_id
+            if evidence.activity
+            else (evidence.inspection.project_id if evidence.inspection else None)
         )
+        if project_id:
+            await ActivityService.verify_project_assignment(
+                db, project_id, current_user
+            )
 
         storage = get_storage_service()
         try:

@@ -7,6 +7,7 @@ import { UserManagementView } from "@/views/team/UserManagementView";
 import { ProjectPortfolioView } from "@/views/projects/ProjectPortfolioView";
 import { ProjectWorkspaceView } from "@/views/projects/ProjectWorkspaceView";
 import { FieldOperationsView } from "@/views/operations/FieldOperationsView";
+import { FieldMonitoringView } from "@/views/monitoring/FieldMonitoringView";
 import { VerificationCentreView } from "@/views/verification/VerificationCentreView";
 import { OrganizationDashboardView } from "@/views/dashboard/OrganizationDashboardView";
 import { LivingEarthMapView } from "@/views/map/LivingEarthMapView";
@@ -72,6 +73,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="projects/:projectId" element={<ProjectWorkspaceView />} />
         <Route path="map" element={<LivingEarthMapView />} />
         <Route path="operations" element={<FieldOperationsView />} />
+        <Route path="monitoring" element={<FieldMonitoringView />} />
         <Route path="analytics" element={<OrganizationDashboardView />} />
 
         {/* Catch-all route */}

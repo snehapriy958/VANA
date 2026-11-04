@@ -5,6 +5,7 @@ import {
   FolderKanban,
   Map as MapIcon,
   ClipboardList,
+  Activity,
   ShieldCheck,
   BarChart3,
   Users,
@@ -27,6 +28,7 @@ const navigation: NavItem[] = [
   { name: "Projects", href: "/projects", icon: FolderKanban },
   { name: "Living Earth Map", href: "/map", icon: MapIcon },
   { name: "Field Operations", href: "/operations", icon: ClipboardList },
+  { name: "Field Monitoring", href: "/monitoring", icon: Activity },
   {
     name: "Verification Centre",
     href: "/verification",

@@ -10,6 +10,19 @@ from app.domains.operations.models import (
     EvidenceFile,
 )
 from app.domains.audit.models import AuditLog
+from app.domains.monitoring.models import (
+    FieldInspection,
+    InspectionStatus,
+    InspectionType,
+    CanopyCondition,
+    SoilMoistureCondition,
+    MaintenanceTask,
+    TaskCategory,
+    TaskPriority,
+    TaskStatus,
+    SurvivalObservation,
+    SurvivalMethodology,
+)
 
 __all__ = [
     "Base",
@@ -26,4 +39,15 @@ __all__ = [
     "RejectionReasonCode",
     "EvidenceFile",
     "AuditLog",
+    "FieldInspection",
+    "InspectionStatus",
+    "InspectionType",
+    "CanopyCondition",
+    "SoilMoistureCondition",
+    "MaintenanceTask",
+    "TaskCategory",
+    "TaskPriority",
+    "TaskStatus",
+    "SurvivalObservation",
+    "SurvivalMethodology",
 ]

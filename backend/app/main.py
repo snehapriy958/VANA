@@ -13,6 +13,7 @@ from app.domains.projects.metrics_router import router as metrics_router
 from app.domains.operations.router import router as operations_router
 from app.domains.operations.verification_router import router as verification_router
 from app.domains.analytics.router import dashboard_router, analytics_router
+from app.domains.monitoring.router import router as monitoring_router
 
 
 @asynccontextmanager
@@ -52,6 +53,7 @@ app.include_router(operations_router, prefix=settings.API_V1_STR)
 app.include_router(verification_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(analytics_router, prefix=settings.API_V1_STR)
+app.include_router(monitoring_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Health"])

@@ -25,6 +25,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.domains.auth.models import User
     from app.domains.projects.models import Project
+    from app.domains.monitoring.models import FieldInspection
 
 
 class ActivityStatus(str, enum.Enum):
@@ -43,6 +44,9 @@ class RejectionReasonCode(str, enum.Enum):
 
 class FieldActivity(Base):
     __tablename__ = "field_activities"
+    __table_args__ = (
+        UniqueConstraint("id", "project_id", name="uq_field_activities_id_project"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
@@ -153,23 +157,35 @@ class EvidenceFile(Base):
     __tablename__ = "evidence_files"
     __table_args__ = (
         CheckConstraint("file_size_bytes > 0", name="chk_evidence_file_size_positive"),
+        CheckConstraint(
+            "(activity_id IS NOT NULL AND revision_id IS NOT NULL AND inspection_id IS NULL) OR "
+            "(inspection_id IS NOT NULL AND activity_id IS NULL AND revision_id IS NULL)",
+            name="chk_evidence_target",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    activity_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("field_activities.id", ondelete="CASCADE"), nullable=False, index=True
+    activity_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, ForeignKey("field_activities.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    revision_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("activity_revisions.id", ondelete="CASCADE"), nullable=False, index=True
+    revision_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, ForeignKey("activity_revisions.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    inspection_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, ForeignKey("field_inspections.id", ondelete="RESTRICT"), nullable=True, index=True
     )
     file_storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    caption: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     # Relationships
-    activity: Mapped["FieldActivity"] = relationship("FieldActivity", back_populates="evidence_files")
-    revision: Mapped["ActivityRevision"] = relationship("ActivityRevision", back_populates="evidence_files")
+    activity: Mapped[Optional["FieldActivity"]] = relationship("FieldActivity", back_populates="evidence_files")
+    revision: Mapped[Optional["ActivityRevision"]] = relationship("ActivityRevision", back_populates="evidence_files")
+    inspection: Mapped[Optional["FieldInspection"]] = relationship("FieldInspection", back_populates="evidence_files")
