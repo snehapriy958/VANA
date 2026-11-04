@@ -81,9 +81,9 @@ erDiagram
 Client submissions (`SurvivalObservationCreate` and `SurvivalObservationCorrection`) **do not accept `survival_rate`**.
 
 Server-side calculation:
-$$\text{survival\_rate} = \begin{cases} 
-\text{round}\left(\dfrac{\text{alive\_count}}{\text{alive\_count} + \text{dead\_count}} \times 100, 2\right) & \text{if } (\text{alive\_count} + \text{dead\_count}) > 0 \\ 
-\text{null} & \text{if } (\text{alive\_count} + \text{dead\_count}) = 0 
+$$\text{survival\_rate} = \begin{cases}
+\text{round}\left(\dfrac{\text{alive\_count}}{\text{alive\_count} + \text{dead\_count}} \times 100, 2\right) & \text{if } (\text{alive\_count} + \text{dead\_count}) > 0 \\
+\text{null} & \text{if } (\text{alive\_count} + \text{dead\_count}) = 0
 \end{cases}$$
 
 ### Derived on Query Architecture

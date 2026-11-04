@@ -347,7 +347,7 @@ def main():
     temp_rev_id = act_temp["revisions"][0]["id"]
     temp_act_id = act_temp["id"]
     post_json(f"/verification/revisions/{temp_rev_id}/decision", {"decision": "VERIFIED", "review_notes": "Verify temp"}, pm_token)
-    
+
     # Ledger quantity before archiving: 2,000 trees (Activity 1 [1,800] + Temp Activity [200])
     status, ledger_with_temp = get_json(f"/analytics/projects/{project_id}/impact", admin_token)
     trees_with_temp = next(t for t in ledger_with_temp["targets"] if t["metric_code"] == "TREES_PLANTED")

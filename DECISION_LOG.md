@@ -420,5 +420,3 @@ This document records the architectural and technical decisions made for VANA, d
      - Enhanced `frontend/src/services/apiClient.ts` with `resolveApiBaseUrl()` to normalize trailing slashes and prevent duplicate `/api/v1` path segments, while emitting a console warning if `VITE_BACKEND_URL` is omitted during production builds.
      - Documented canonical environment variables across root, backend, and frontend `.env.example` templates.
 * **Consequences:** Eliminates migration execution failures on Render build commands; prevents default credential leakage in production; ensures zero-trust origin enforcement for credentialed requests; verified with 130/130 passing backend pytest tests (including dedicated bootstrap and CORS suites) and 77/77 frontend tests.
-
-

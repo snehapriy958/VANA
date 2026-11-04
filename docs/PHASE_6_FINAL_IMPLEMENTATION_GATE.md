@@ -62,9 +62,9 @@
     3. `OVERDUE_TASK`: `status IN ('TODO', 'IN_PROGRESS') AND due_date < CURRENT_DATE`
   * **No Client Trust:** Client creation schemas do not accept `survival_rate`.
   * **Derived on Query:**
-    $$\text{survival\_rate} = \begin{cases} 
-    \text{round}\left(\dfrac{\text{alive\_count}}{\text{alive\_count} + \text{dead\_count}} \times 100, 2\right) & \text{if } (\text{alive\_count} + \text{dead\_count}) > 0 \\ 
-    \text{null} & \text{if } (\text{alive\_count} + \text{dead\_count}) = 0 
+    $$\text{survival\_rate} = \begin{cases}
+    \text{round}\left(\dfrac{\text{alive\_count}}{\text{alive\_count} + \text{dead\_count}} \times 100, 2\right) & \text{if } (\text{alive\_count} + \text{dead\_count}) > 0 \\
+    \text{null} & \text{if } (\text{alive\_count} + \text{dead\_count}) = 0
     \end{cases}$$
     Derived server-side in Pydantic models via `@computed_field` or in SQL projections. Raw counts (`sample_size`, `alive_count`, `dead_count`) remain the sole source of truth in PostgreSQL.
 
@@ -123,7 +123,7 @@ CREATE TABLE field_inspections (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_inspections_id_project UNIQUE (id, project_id),
-    CONSTRAINT fk_inspections_linked_activity FOREIGN KEY (linked_activity_id, project_id) 
+    CONSTRAINT fk_inspections_linked_activity FOREIGN KEY (linked_activity_id, project_id)
         REFERENCES field_activities(id, project_id) ON DELETE SET NULL (linked_activity_id),
     CONSTRAINT chk_inspection_status CHECK (status IN ('SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')),
     CONSTRAINT chk_inspection_type CHECK (inspection_type IN ('ROUTINE', 'SURVIVAL_CHECK', 'MAINTENANCE_AUDIT', 'EMERGENCY')),
@@ -154,9 +154,9 @@ CREATE TABLE maintenance_tasks (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_tasks_id_project UNIQUE (id, project_id),
-    CONSTRAINT fk_tasks_inspection FOREIGN KEY (inspection_id, project_id) 
+    CONSTRAINT fk_tasks_inspection FOREIGN KEY (inspection_id, project_id)
         REFERENCES field_inspections(id, project_id) ON DELETE SET NULL (inspection_id),
-    CONSTRAINT fk_tasks_activity FOREIGN KEY (activity_id, project_id) 
+    CONSTRAINT fk_tasks_activity FOREIGN KEY (activity_id, project_id)
         REFERENCES field_activities(id, project_id) ON DELETE SET NULL (activity_id),
     CONSTRAINT chk_task_category CHECK (category IN ('IRRIGATION', 'WEEDING', 'MULCHING', 'FENCING_REPAIR', 'REPLANTING_PREP', 'PEST_CONTROL', 'SOIL_ENRICHMENT', 'OTHER')),
     CONSTRAINT chk_task_priority CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH', 'URGENT')),
@@ -189,11 +189,11 @@ CREATE TABLE survival_observations (
     notes TEXT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_survival_obs_id_project UNIQUE (id, project_id),
-    CONSTRAINT fk_survival_inspection FOREIGN KEY (inspection_id, project_id) 
+    CONSTRAINT fk_survival_inspection FOREIGN KEY (inspection_id, project_id)
         REFERENCES field_inspections(id, project_id) ON DELETE SET NULL (inspection_id),
-    CONSTRAINT fk_survival_activity FOREIGN KEY (activity_id, project_id) 
+    CONSTRAINT fk_survival_activity FOREIGN KEY (activity_id, project_id)
         REFERENCES field_activities(id, project_id) ON DELETE RESTRICT,
-    CONSTRAINT fk_survival_superseded FOREIGN KEY (superseded_by_id) 
+    CONSTRAINT fk_survival_superseded FOREIGN KEY (superseded_by_id)
         REFERENCES survival_observations(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
     CONSTRAINT chk_survival_methodology CHECK (methodology IN ('SAMPLE_PLOT', 'TRANSECT', 'FULL_CENSUS')),
     CONSTRAINT chk_survival_counts_positive CHECK (sample_size > 0 AND alive_count >= 0 AND dead_count >= 0),
