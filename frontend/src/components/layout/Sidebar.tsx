@@ -46,7 +46,7 @@ const navigation: NavItem[] = [
     name: "Audit History",
     href: "/audit",
     icon: History,
-    allowedRoles: ["ADMIN"],
+    allowedRoles: ["ADMIN", "PROJECT_MANAGER"],
   },
 ];
 

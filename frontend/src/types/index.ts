@@ -23,3 +23,4 @@ export interface ApiErrorResponse {
 }
 
 export * from "./monitoring";
+export * from "./audit";
